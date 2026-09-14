@@ -9,7 +9,7 @@
   img{max-width:100%}
   [hidden]{display:none!important}
 </style>
-<title>Astral Patience</title>
+<title>Solitaris</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Oswald:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -234,7 +234,7 @@
 </head>
 <body>
 <div id="app">
-  <canvas id="stage" aria-label="Astral Patience — solitaire"></canvas>
+  <canvas id="stage" aria-label="Solitaris — solitaire"></canvas>
   <div class="ui">
     <div class="topbar">
       <button class="glass" id="btn-shop">&#9670; Market</button>
@@ -256,7 +256,7 @@
   <!-- SHOP -->
   <div class="overlay" id="shop">
     <div class="shop-head">
-      <span class="shop-title">Astral Market</span>
+      <span class="shop-title">Solitaris Market</span>
       <div class="wallet">
         <span class="coin shards">&#9672; <b id="w-shards">0</b></span>
         <span class="coin gems">&#10022; <b id="w-gems">0</b></span>
@@ -1056,6 +1056,63 @@ var CATALOG = {
       c.restore();
     } },
 
+  /* ---- faces portees depuis solitaire-deluxe ---- */
+  card_papier:{ type:'card', name:'Papier Vintage', rarity:'common', price:{shards:380}, animated:false,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#f7eeda','#e4d3ac',function(s){ return isRed(s)?'#a3301a':'#2f2316'; },'rgba(90,60,20,0.36)');
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalAlpha = 0.3; c.strokeStyle = 'rgba(120,80,30,0.45)'; c.lineWidth = 1;
+      for (var x=-w/2;x<w/2;x+=w*0.045){ c.beginPath(); c.moveTo(x,-h/2); c.lineTo(x+h*0.05,h/2); c.stroke(); }
+      c.restore();
+    } },
+  card_craie:{ type:'card', name:'Ardoise & Craie', rarity:'common', price:{shards:400}, animated:false,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#3a4147','#252b30',function(s){ return isRed(s)?'#ff9d9d':'#f2f5f4'; },'rgba(255,255,255,0.28)');
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalAlpha = 0.5; c.strokeStyle = 'rgba(255,255,255,0.06)'; c.lineWidth = 1;
+      for (var i=-h;i<h;i+=w*0.03){ c.beginPath(); c.moveTo(-w/2,i); c.lineTo(w/2,i+w*0.22); c.stroke(); }
+      c.restore();
+    } },
+  card_mono:{ type:'card', name:'Monochrome', rarity:'rare', price:{shards:650}, animated:false,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#fcfcfc','#e7e7e7',function(s){ return isRed(s)?'#565d69':'#0f1115'; },'rgba(0,0,0,0.36)');
+    } },
+  card_bauhaus:{ type:'card', name:'Bauhaus', rarity:'rare', price:{shards:900}, animated:false,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#fbf7ef','#efe7d8',function(s){ return isRed(s)?'#d92b1f':'#16181c'; },null);
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.fillStyle = 'rgba(242,197,61,0.55)';
+      c.beginPath(); c.arc(-w*0.30,-h*0.30,w*0.13,0,6.283); c.fill();
+      c.fillStyle = 'rgba(24,87,196,0.4)';
+      c.beginPath(); c.moveTo(w*0.16,h*0.36); c.lineTo(w*0.40,h*0.36); c.lineTo(w*0.28,h*0.16); c.closePath(); c.fill();
+      c.restore();
+      c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = Math.max(2,w*0.028);
+      rrpath(c,-w/2,-h/2,w,h,w*0.09); c.stroke();
+    } },
+  card_botanik:{ type:'card', name:'Herbier', rarity:'rare', price:{shards:820}, animated:false,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#f7f3e4','#e6dec4',function(s){ return isRed(s)?'#9c4322':'#28331f'; },'rgba(70,80,45,0.36)');
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip(); c.globalAlpha = 0.3;
+      var b1 = c.createRadialGradient(-w*0.28,h*0.28,0,-w*0.28,h*0.28,w*0.42);
+      cs(b1,0,'rgba(90,120,60,0.6)'); cs(b1,1,'rgba(0,0,0,0)');
+      c.fillStyle = b1; c.fillRect(-w/2,-h/2,w,h);
+      var b2 = c.createRadialGradient(w*0.30,-h*0.28,0,w*0.30,-h*0.28,w*0.38);
+      cs(b2,0,'rgba(120,140,70,0.5)'); cs(b2,1,'rgba(0,0,0,0)');
+      c.fillStyle = b2; c.fillRect(-w/2,-h/2,w,h);
+      c.restore();
+    } },
+  card_pixel:{ type:'card', name:'Pixel 8-bit', rarity:'epic', price:{shards:2100}, animated:false,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#1b2436','#0d1320',function(s){ return isRed(s)?'#ff6a8a':'#8bf5b0'; },'rgba(139,245,176,0.5)');
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalAlpha = 0.55; c.fillStyle = 'rgba(0,0,0,0.5)';
+      var g = Math.max(2, w*0.026);
+      for (var y=-h/2;y<h/2;y+=g) c.fillRect(-w/2,y,w,1);
+      c.globalAlpha = 0.35;
+      for (var x=-w/2;x<w/2;x+=g) c.fillRect(x,-h/2,1,h);
+      c.restore();
+    } },
+
   /* ---- SLEEVES ---- */
   sleeve_arcane:{ type:'sleeve', name:'Arcane Sigil', rarity:'common', price:null, animated:false,
     back:function(c,w,h){
@@ -1244,6 +1301,184 @@ var CATALOG = {
       c.restore();
     } },
 
+  /* ---- dos portes depuis solitaire-deluxe ---- */
+  sleeve_rouge:{ type:'sleeve', name:'Rouge Classique', rarity:'common', price:{shards:280}, animated:false,
+    back:function(c,w,h){
+      c.fillStyle = '#8c1220'; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.translate(-w,-h); c.rotate(0.7854); c.fillStyle = '#a5182a';
+      var st = Math.max(5,w*0.05);
+      for (var x=0;x<w*3;x+=st*2) c.fillRect(x,0,st,h*3);
+      c.restore();
+      c.strokeStyle = 'rgba(255,220,220,0.35)'; c.lineWidth = Math.max(1,w*0.018);
+      rrpath(c,-w/2+w*0.06,-h/2+w*0.06,w-w*0.12,h-w*0.12,w*0.05); c.stroke();
+    } },
+  sleeve_azur:{ type:'sleeve', name:'Damier Azur', rarity:'common', price:{shards:300}, animated:false,
+    back:function(c,w,h){
+      var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#1c5fa8'); cs(g,1,'#0d2c58');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.strokeStyle = 'rgba(255,255,255,0.16)'; c.lineWidth = Math.max(2,w*0.04);
+      var st = Math.max(9,w*0.085);
+      for (var i=-h;i<w+h;i+=st){
+        c.beginPath(); c.moveTo(-w/2+i,-h/2); c.lineTo(-w/2+i-h,h/2); c.stroke();
+        c.beginPath(); c.moveTo(-w/2+i,-h/2); c.lineTo(-w/2+i+h,h/2); c.stroke();
+      }
+      c.restore();
+    } },
+  sleeve_ivy:{ type:'sleeve', name:'Feuillage Emeraude', rarity:'common', price:{shards:300}, animated:false,
+    back:function(c,w,h){
+      var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#1f6b48'); cs(g,1,'#0b2c1e');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.fillStyle = 'rgba(0,0,0,0.13)';
+      for (var y=-h/2;y<h/2;y+=Math.max(8,h*0.06)) c.fillRect(-w/2,y,w,Math.max(4,h*0.03));
+      c.fillStyle = 'rgba(190,255,200,0.28)';
+      c.beginPath(); c.arc(-w*0.25,-h*0.25,w*0.16,0,6.283); c.fill();
+      c.beginPath(); c.arc(w*0.25,h*0.25,w*0.16,0,6.283); c.fill();
+      c.restore();
+    } },
+  sleeve_tartan:{ type:'sleeve', name:'Tartan Sable', rarity:'common', price:{shards:300}, animated:false,
+    back:function(c,w,h){
+      var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#8a6a35'); cs(g,1,'#513c1c');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      var st = Math.max(12,w*0.13), bw = Math.max(3,w*0.037);
+      c.fillStyle = 'rgba(0,0,0,0.22)';
+      for (var y=-h/2;y<h/2;y+=st) c.fillRect(-w/2,y,w,bw);
+      for (var x=-w/2;x<w/2;x+=st) c.fillRect(x,-h/2,bw,h);
+      c.fillStyle = 'rgba(255,220,150,0.28)';
+      for (var y2=-h/2;y2<h/2;y2+=st*2) c.fillRect(-w/2,y2+bw*1.6,w,Math.max(1.5,w*0.016));
+      c.restore();
+    } },
+  sleeve_origami:{ type:'sleeve', name:'Origami', rarity:'common', price:{shards:320}, animated:false,
+    back:function(c,w,h){
+      var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#e8dfcd'); cs(g,1,'#c9bca3');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      var st = Math.max(16,w*0.2);
+      for (var y=-h/2;y<h/2;y+=st) for (var x=-w/2;x<w/2;x+=st){
+        c.fillStyle = 'rgba(243,236,224,0.9)';
+        c.beginPath(); c.moveTo(x,y); c.lineTo(x+st,y); c.lineTo(x,y+st); c.closePath(); c.fill();
+        c.fillStyle = 'rgba(217,205,184,0.9)';
+        c.beginPath(); c.moveTo(x+st,y+st); c.lineTo(x+st,y); c.lineTo(x,y+st); c.closePath(); c.fill();
+      }
+      c.restore();
+      c.strokeStyle = 'rgba(90,70,40,0.4)'; c.lineWidth = Math.max(1,w*0.016);
+      rrpath(c,-w/2+w*0.06,-h/2+w*0.06,w-w*0.12,h-w*0.12,w*0.05); c.stroke();
+    } },
+  sleeve_encre:{ type:'sleeve', name:"Vague d'Encre", rarity:'rare', price:{shards:520}, animated:false,
+    back:function(c,w,h){
+      var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#20304a'); cs(g,1,'#080d18');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.strokeStyle = 'rgba(255,255,255,0.1)'; c.lineWidth = Math.max(2,w*0.035);
+      for (var r=w*0.12;r<w*1.5;r+=Math.max(10,w*0.11)){
+        c.beginPath(); c.arc(0,h*0.7,r,0,6.283); c.stroke();
+      }
+      var hl = c.createRadialGradient(-w*0.2,-h*0.3,0,-w*0.2,-h*0.3,w*0.6);
+      cs(hl,0,'rgba(255,255,255,0.18)'); cs(hl,1,'rgba(0,0,0,0)');
+      c.fillStyle = hl; c.fillRect(-w/2,-h/2,w,h);
+      c.restore();
+    } },
+  sleeve_recif:{ type:'sleeve', name:'Recif', rarity:'rare', price:{shards:560}, animated:false,
+    back:function(c,w,h){
+      var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#0f7f85'); cs(g,1,'#04333f');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.lineWidth = Math.max(1.5,w*0.025);
+      c.strokeStyle = 'rgba(255,255,255,0.16)';
+      for (var r=w*0.08;r<w*1.2;r+=Math.max(8,w*0.1)){ c.beginPath(); c.arc(-w*0.3,h*0.6,r,0,6.283); c.stroke(); }
+      c.strokeStyle = 'rgba(120,255,230,0.2)';
+      for (var r2=w*0.06;r2<w*1.1;r2+=Math.max(7,w*0.085)){ c.beginPath(); c.arc(w*0.3,h*0.6,r2,0,6.283); c.stroke(); }
+      c.restore();
+    } },
+  sleeve_mandala:{ type:'sleeve', name:'Mandala Pourpre', rarity:'rare', price:{shards:700}, animated:false,
+    back:function(c,w,h){
+      c.fillStyle = '#4c1d95'; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      var R = Math.max(w,h);
+      for (var i=0;i<12;i++){
+        c.fillStyle = i%2 ? '#6d28d9' : '#c026d3';
+        c.beginPath(); c.moveTo(0,0);
+        c.arc(0,0,R,i*0.5236,(i+1)*0.5236); c.closePath(); c.fill();
+      }
+      c.strokeStyle = 'rgba(255,255,255,0.2)'; c.lineWidth = Math.max(1.5,w*0.02);
+      for (var r=w*0.08;r<w*0.9;r+=Math.max(7,w*0.09)){ c.beginPath(); c.arc(0,0,r,0,6.283); c.stroke(); }
+      c.restore();
+    } },
+  sleeve_runes:{ type:'sleeve', name:'Runes Anciennes', rarity:'rare', price:{shards:760}, animated:false,
+    back:function(c,w,h){
+      var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#2c2a30'); cs(g,1,'#0e0d12');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      var gl = c.createRadialGradient(0,-h*0.05,0,0,-h*0.05,w*0.7);
+      cs(gl,0,'rgba(255,170,60,0.32)'); cs(gl,1,'rgba(0,0,0,0)');
+      c.fillStyle = gl; c.fillRect(-w/2,-h/2,w,h);
+      c.fillStyle = 'rgba(255,196,90,0.16)';
+      var st = Math.max(12,w*0.14);
+      for (var y=-h/2;y<h/2;y+=st) c.fillRect(-w/2,y,w,Math.max(1.5,w*0.018));
+      for (var x=-w/2;x<w/2;x+=st) c.fillRect(x,-h/2,Math.max(1.5,w*0.018),h);
+      c.restore();
+      c.strokeStyle = 'rgba(255,202,106,0.5)'; c.lineWidth = Math.max(1.4,w*0.022);
+      starPath(c,0,0,Math.min(w,h)*0.1,Math.min(w,h)*0.24,7); c.stroke();
+    } },
+  sleeve_dragon:{ type:'sleeve', name:'Ecailles de Dragon', rarity:'epic', price:{shards:1800}, animated:false,
+    back:function(c,w,h){
+      var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#0f6b5c'); cs(g,1,'#04231f');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      var sw = Math.max(12,w*0.13), sh = sw*0.85;
+      for (var row=0, y=-h/2-sh; y<h/2+sh; y+=sh, row++){
+        var off = (row%2) ? sw/2 : 0;
+        for (var x=-w/2-sw; x<w/2+sw; x+=sw){
+          c.fillStyle = 'rgba(0,0,0,0.4)';
+          c.beginPath(); c.arc(x+off+sw/2, y+sh*0.55, sw*0.47, Math.PI, 0); c.fill();
+          c.fillStyle = 'rgba(255,255,255,0.16)';
+          c.beginPath(); c.arc(x+off+sw/2, y+sh*0.42, sw*0.43, Math.PI, 0); c.fill();
+        }
+      }
+      c.restore();
+    } },
+  sleeve_inferno:{ type:'sleeve', name:'Inferno', rarity:'legendary', price:{shards:4800}, animated:true,
+    back:function(c,w,h){
+      var g = c.createRadialGradient(0,h*0.62,0,0,h*0.62,h*1.15);
+      cs(g,0,'#fff3b0'); cs(g,0.12,'#ffb703'); cs(g,0.34,'#ff5400'); cs(g,0.66,'#8a1c00'); cs(g,1,'#2a0600');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+    },
+    frame:function(c,w,h,ph){
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip(); c.globalCompositeOperation = 'lighter';
+      var pulse = 0.6 + 0.4*Math.sin(ph*6.283);
+      var g = c.createRadialGradient(0,h*0.62,0,0,h*0.62,h*(0.85+0.2*pulse));
+      cs(g,0,'rgba(255,240,170,0.45)'); cs(g,0.4,'rgba(255,120,0,0.2)'); cs(g,1,'rgba(0,0,0,0)');
+      c.fillStyle = g; c.fillRect(-w/2,-h/2,w,h);
+      c.globalAlpha = 0.24; c.fillStyle = 'rgba(255,190,60,1)';
+      var st = Math.max(6,w*0.075), sc = (ph*st)%st;
+      c.translate(0,-sc); c.rotate(0.2443);
+      for (var y=-h;y<h*1.4;y+=st) c.fillRect(-w,y,w*3,Math.max(2,w*0.026));
+      c.restore();
+    } },
+  sleeve_orage:{ type:'sleeve', name:"Oeil du Cyclone", rarity:'legendary', price:{gems:45}, animated:true,
+    back:function(c,w,h){
+      var g = c.createRadialGradient(0,0,0,0,0,Math.max(w,h)*0.62);
+      cs(g,0,'#0b1826'); cs(g,0.26,'rgba(90,150,210,0.5)'); cs(g,0.55,'#122236'); cs(g,1,'#050a11');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+    },
+    frame:function(c,w,h,ph){
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.rotate(ph*6.283);
+      c.globalCompositeOperation = 'lighter';
+      var R = Math.max(w,h);
+      for (var i=0;i<3;i++){
+        var a0 = i*2.094;
+        var g = c.createLinearGradient(Math.cos(a0)*R,Math.sin(a0)*R,0,0);
+        cs(g,0,'rgba(180,225,255,0)'); cs(g,0.6,'rgba(180,225,255,0.28)'); cs(g,1,'rgba(180,225,255,0)');
+        c.fillStyle = g;
+        c.beginPath(); c.moveTo(0,0); c.arc(0,0,R,a0,a0+0.7); c.closePath(); c.fill();
+      }
+      c.restore();
+    } },
+
   /* ---- MATS (tables) ---- */
   mat_deepspace:{ type:'mat', name:'Deep Space', rarity:'common', price:null, animated:true, bg:matDeepspace },
   mat_midnight:{ type:'mat', name:'Midnight Weave', rarity:'common', price:{shards:400}, animated:true, bg:matMidnight },
@@ -1256,7 +1491,17 @@ var CATALOG = {
   mat_arcade:{ type:'mat', name:'Outrun', rarity:'epic', price:{shards:3200}, animated:true, bg:matArcade },
   mat_starfall:{ type:'mat', name:'Starfall', rarity:'legendary', price:{shards:5600}, animated:true, bg:matStarfall },
   mat_neoncity:{ type:'mat', name:'Neon Precinct', rarity:'legendary', price:{gems:55}, animated:true, bg:matNeonCity },
-  mat_singularity:{ type:'mat', name:'Event Horizon', rarity:'mythic', price:{gems:160}, animated:true, bg:matSingularity }
+  mat_singularity:{ type:'mat', name:'Event Horizon', rarity:'mythic', price:{gems:160}, animated:true, bg:matSingularity },
+  /* ---- tapis portes depuis solitaire-deluxe ---- */
+  mat_feutre:{ type:'mat', name:'Feutre Vert', rarity:'common', price:{shards:320}, animated:false, bg:matFeutre },
+  mat_ardoise:{ type:'mat', name:'Ardoise', rarity:'common', price:{shards:320}, animated:false, bg:matArdoise },
+  mat_bordeaux:{ type:'mat', name:'Bordeaux', rarity:'common', price:{shards:340}, animated:false, bg:matBordeaux },
+  mat_sable:{ type:'mat', name:'Sable Chaud', rarity:'common', price:{shards:360}, animated:false, bg:matSable },
+  mat_chene:{ type:'mat', name:'Chene Massif', rarity:'rare', price:{shards:750}, animated:false, bg:matChene },
+  mat_cuir:{ type:'mat', name:'Cuir Cognac', rarity:'rare', price:{shards:820}, animated:false, bg:matCuir },
+  mat_marbre:{ type:'mat', name:'Marbre Veine', rarity:'rare', price:{shards:900}, animated:false, bg:matMarbre },
+  mat_velours:{ type:'mat', name:'Velours Royal', rarity:'epic', price:{shards:2200}, animated:false, bg:matVelours },
+  mat_aurum:{ type:'mat', name:"Damas d'Or", rarity:'mythic', price:{gems:130}, animated:true, bg:matAurum }
 };
 var CARD_DEFAULT = 'card_classic', SLEEVE_DEFAULT = 'sleeve_arcane', MAT_DEFAULT = 'mat_deepspace';
 (function(){ for (var k in CATALOG) CATALOG[k].id = k; })();
@@ -1374,7 +1619,21 @@ var ITEM_ART = {
   mat_ocean:['wave','#78d8ff'],       mat_datastream:['grid','#4fe08a'],
   mat_sunrise:['orb','#ffbe78'],      mat_volcanic:['flame','#ff6a20'],
   mat_arcade:['grid','#ff2e8b'],      mat_starfall:['star','#cfe0ff'],
-  mat_neoncity:['bolt','#ffd98a'],    mat_singularity:['spiral','#ffaa50']
+  mat_neoncity:['bolt','#ffd98a'],    mat_singularity:['spiral','#ffaa50'],
+  card_papier:['rune','#a3301a'],      card_craie:['grid','#f2f5f4'],
+  card_mono:['hex','#565d69'],         card_bauhaus:['prism','#d92b1f'],
+  card_botanik:['leaf','#3d6b2c'],     card_pixel:['grid','#8bf5b0'],
+  sleeve_rouge:['crown','#a5182a'],    sleeve_azur:['hex','#4d9ae0'],
+  sleeve_ivy:['leaf','#6fd39a'],       sleeve_tartan:['grid','#c8a05a'],
+  sleeve_origami:['prism','#d9cdb8'],  sleeve_encre:['wave','#8fb4e0'],
+  sleeve_recif:['wave','#6fe0d0'],     sleeve_mandala:['spiral','#c026d3'],
+  sleeve_runes:['rune','#ffca6a'],     sleeve_dragon:['eye','#3fbfa5'],
+  sleeve_inferno:['flame','#ff7b32'],  sleeve_orage:['spiral','#b4e1ff'],
+  mat_feutre:['leaf','#2f8f5e'],       mat_ardoise:['hex','#5a6474'],
+  mat_bordeaux:['orb','#7e1f33'],      mat_sable:['wave','#d9b483'],
+  mat_chene:['grid','#8a5a2b'],        mat_cuir:['rune','#a35c2c'],
+  mat_marbre:['prism','#b9c2cd'],      mat_velours:['crown','#6a2ea8'],
+  mat_aurum:['crown','#d8a83c']
 };
 var MOTIF_KEYS = Object.keys(MOTIFS);
 function artOf(id){
@@ -1691,6 +1950,141 @@ function matSingularity(c,W,H,t){
   c.beginPath(); c.arc(cx,cy,R*0.44,0,6.283); c.stroke();
   c.restore();
   matVignette(c,W,H,0.62);
+}
+
+/* ---------- tapis portés depuis solitaire-deluxe (MIT, meme auteur) ---------- */
+var _noiseTile = null;
+function matNoise(c,W,H,alpha,step){
+  if (!_noiseTile){
+    var t = document.createElement('canvas'); t.width = t.height = 4;
+    var g = t.getContext('2d');
+    g.fillStyle = 'rgba(255,255,255,0.5)'; g.fillRect(2,2,1,1);
+    _noiseTile = t;
+  }
+  var pat = c.createPattern(_noiseTile,'repeat');
+  if (!pat) return;
+  c.save(); c.globalAlpha = alpha; c.fillStyle = pat; c.fillRect(0,0,W,H); c.restore();
+}
+function matEllipse(c,W,H,cx,cy,inner,mid,outer,midStop){
+  var g = c.createRadialGradient(W*cx,H*cy,0,W*cx,H*cy,Math.max(W,H)*0.78);
+  cs(g,0,inner); cs(g,midStop==null?0.45:midStop,mid); cs(g,1,outer);
+  c.fillStyle = g; c.fillRect(0,0,W,H);
+}
+function matStripes(c,W,H,angle,col,on,period){
+  c.save();
+  c.beginPath(); c.rect(0,0,W,H); c.clip();
+  c.translate(W/2,H/2); c.rotate(angle); c.translate(-W,-H);
+  c.fillStyle = col;
+  for (var x=0;x<W*2;x+=period) c.fillRect(x,0,on,H*2);
+  c.restore();
+}
+
+function matFeutre(c,W,H,t){
+  matEllipse(c,W,H,0.5,0.22,'#2f8f5e','#166b43','#083a24');
+  matNoise(c,W,H,0.16,4);
+  matVignette(c,W,H,0.66);
+}
+function matArdoise(c,W,H,t){
+  var g = c.createLinearGradient(0,0,W*0.55,H);
+  cs(g,0,'#39414f'); cs(g,0.7,'#171b23'); cs(g,1,'#0e1118');
+  c.fillStyle = g; c.fillRect(0,0,W,H);
+  matNoise(c,W,H,0.1,4);
+  matVignette(c,W,H,0.7);
+}
+function matBordeaux(c,W,H,t){
+  matEllipse(c,W,H,0.5,0.25,'#7e1f33','#5a1526','#3d0d1a',0.7);
+  matNoise(c,W,H,0.12,4);
+  matVignette(c,W,H,0.66);
+}
+function matChene(c,W,H,t){
+  var g = c.createLinearGradient(0,0,W*0.5,H);
+  cs(g,0,'#8a5a2b'); cs(g,1,'#4a2d12');
+  c.fillStyle = g; c.fillRect(0,0,W,H);
+  c.save(); c.beginPath(); c.rect(0,0,W,H); c.clip();
+  var step = Math.max(W/70, 9);
+  for (var x=0;x<W+step;x+=step){
+    var wob = Math.sin(x*0.013)*H*0.02;
+    c.globalAlpha = 0.42; c.fillStyle = '#3c200a';
+    c.fillRect(x + wob, -H*0.05, step*0.26, H*1.1);
+    c.globalAlpha = 0.09; c.fillStyle = '#ffd296';
+    c.fillRect(x + wob + step*0.5, -H*0.05, step*0.14, H*1.1);
+  }
+  c.restore();
+  matVignette(c,W,H,0.6);
+}
+function matVelours(c,W,H,t){
+  matEllipse(c,W,H,0.5,0.18,'#6a2ea8','#43176e','#25093f',0.6);
+  c.save(); c.globalAlpha = 0.3;
+  matStripes(c,W,H,115*Math.PI/180,'rgba(255,255,255,0.09)',Math.max(2,W/560),Math.max(7,W/190));
+  c.restore();
+  matVignette(c,W,H,0.68);
+}
+function matSable(c,W,H,t){
+  matEllipse(c,W,H,0.5,0.2,'#d9b483','#a87c4e','#6d4d2c',0.55);
+  matStripes(c,W,H,97*Math.PI/180,'rgba(160,120,70,0.1)',Math.max(2,W/700),Math.max(9,W/150));
+  matVignette(c,W,H,0.5);
+}
+function matCuir(c,W,H,t){
+  matEllipse(c,W,H,0.5,0.22,'#a35c2c','#5e2f14','#2e1608',0.65);
+  c.save(); c.globalAlpha = 0.09; c.fillStyle = '#000';
+  for (var i=0;i<300;i++){
+    var gx = ((i*137.31)%1)*W, gy = ((i*79.7)%1)*H;
+    c.beginPath(); c.arc(gx,gy,Math.max(1.2,W/620),0,6.283); c.fill();
+  }
+  c.restore();
+  c.save(); c.strokeStyle = 'rgba(255,205,150,0.28)';
+  c.lineWidth = Math.max(2,W/700); c.setLineDash([W/90,W/140]);
+  var m = Math.min(W,H)*0.035;
+  rrpath(c,m,m,W-m*2,H-m*2,Math.min(W,H)*0.03); c.stroke();
+  c.restore();
+  matVignette(c,W,H,0.66);
+}
+function matMarbre(c,W,H,t){
+  var g = c.createLinearGradient(0,0,W*0.6,H);
+  cs(g,0,'#e8ecf1'); cs(g,0.7,'#b9c2cd'); cs(g,1,'#8d97a5');
+  c.fillStyle = g; c.fillRect(0,0,W,H);
+  c.save(); c.beginPath(); c.rect(0,0,W,H); c.clip();
+  c.lineCap = 'round';
+  var veins = [[0.44,118,'rgba(255,255,255,0.5)',0.010],
+               [0.29,76,'rgba(160,180,200,0.42)',0.014],
+               [0.67,140,'rgba(255,255,255,0.34)',0.009]];
+  for (var v=0;v<veins.length;v++){
+    var q = veins[v];
+    c.strokeStyle = q[2]; c.lineWidth = Math.max(1.5, W*q[3]);
+    var a = q[1]*Math.PI/180;
+    var px = W*q[0] - Math.cos(a)*W, py = H*0.5 - Math.sin(a)*W;
+    c.beginPath(); c.moveTo(px,py);
+    for (var k=1;k<=8;k++){
+      c.lineTo(px + Math.cos(a)*W*0.25*k + Math.sin(k*1.7)*W*0.02,
+               py + Math.sin(a)*W*0.25*k + Math.cos(k*2.1)*H*0.03);
+    }
+    c.stroke();
+  }
+  c.restore();
+  matVignette(c,W,H,0.42);
+}
+function matAurum(c,W,H,t){
+  matEllipse(c,W,H,0.5,0.22,'#d8a83c','#8a6414','#3c2a06',0.62);
+  /* rayons damasses */
+  c.save(); c.beginPath(); c.rect(0,0,W,H); c.clip();
+  c.translate(W/2,H/2);
+  c.fillStyle = 'rgba(255,226,150,0.16)';
+  var R = Math.max(W,H);
+  for (var i=0;i<15;i++){
+    var a0 = (i*24 + 45)*Math.PI/180, a1 = a0 + 12*Math.PI/180;
+    c.beginPath(); c.moveTo(0,0);
+    c.arc(0,0,R,a0,a1); c.closePath(); c.fill();
+  }
+  c.restore();
+  matStripes(c,W,H,45*Math.PI/180,'rgba(120,80,10,0.16)',Math.max(6,W/100),Math.max(12,W/50));
+  /* balayage lumineux */
+  c.save(); c.globalCompositeOperation = 'lighter';
+  var sx = W*(0.5 + 0.42*Math.sin(t*0.55));
+  var sg = c.createLinearGradient(sx - W*0.22, 0, sx + W*0.22, H);
+  cs(sg,0,'rgba(255,240,190,0)'); cs(sg,0.5,'rgba(255,240,190,0.3)'); cs(sg,1,'rgba(255,240,190,0)');
+  c.fillStyle = sg; c.fillRect(0,0,W,H);
+  c.restore();
+  matVignette(c,W,H,0.64);
 }
 
 /* ============================================================================
@@ -2251,7 +2645,7 @@ function newGame(seed){
   }
   dealing = true; interactive = false;
   dealDoneAt = base + order.length*34 + P.stock.length*7 + 420;
-  bannerText(mode==='br' ? 'BATTLE ROYALE' : 'ASTRAL PATIENCE', mode==='br' ? '#ff3b6b' : '#f5c542');
+  bannerText(mode==='br' ? 'BATTLE ROYALE' : 'SOLITARIS', mode==='br' ? '#ff3b6b' : '#f5c542');
 }
 
 /* ============================================================================

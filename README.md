@@ -1,10 +1,12 @@
 # Solitaris
 
-A single-file Klondike solitaire, deliberately over-juiced: every move blooms,
-shakes and rains shards. Ships with a skin economy, case opening and an
-8-player battle royale against AI climbers.
+**[▶ Jouer maintenant](https://jubifox.github.io/solitaris/)**
 
-Open `index.html` in a browser. No build step, no dependencies, no server.
+A single-file Klondike solitaire, deliberately over-juiced: every move blooms,
+shakes and rains shards. Ships with a 70-piece skin economy, case opening and
+an 8-player battle royale against AI climbers.
+
+One HTML file. No build step, no dependencies, no server — open it and play.
 
 ## Playing
 
@@ -29,10 +31,10 @@ full card cascade on the win. A combo multiplier (up to ×15) escalates every
 chained scoring move.
 
 **Economy.** Two currencies: shards earned by playing, and premium gems.
-43 cosmetics across three slots — 19 card faces, 12 sleeves, 12 tables — with
-five rarity tiers. Ten of the card skins are animated (fire, water, frost,
-lightning, petals, an accretion disc…), rendered as pre-baked 30-frame sprite
-loops so they cost one blit per card at runtime.
+**70 cosmetics** across three slots — 25 card faces, 24 sleeves, 21 tables —
+in five rarity tiers. Thirty-one are animated (fire, water, frost, lightning,
+petals, a cyclone eye, an accretion disc…), rendered as pre-baked 30-frame
+sprite loops so they cost one blit per card at runtime.
 
 **Cases.** Two crates with published odds, openable ×1, ×5 or ×10. Single
 opens run a CS:GO-style carousel; multi-opens flip a grid of tiles one at a
@@ -60,9 +62,22 @@ current fps and tier are shown under the shard counter.
 
 `prefers-reduced-motion` is honoured — it starts in the calmest tier.
 
+## Credits
+
+27 of the cosmetics are canvas ports of designs from
+[solitaire-deluxe](https://github.com/jubifox/solitaire-deluxe) (MIT, same
+author), which builds its skins in CSS. They were reimplemented as canvas
+renderers rather than copied.
+
+Typefaces are Cinzel, Oswald and IBM Plex Mono, loaded from Google Fonts.
+
 ## Layout
 
     index.html    the whole game: markup, styles, engine, catalogue
 
 Deliberately one file. It is meant to survive being emailed, dropped on a USB
 stick, or opened straight off a network share.
+
+## Licence
+
+MIT
