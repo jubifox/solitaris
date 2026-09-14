@@ -1,0 +1,68 @@
+# Solitaris
+
+A single-file Klondike solitaire, deliberately over-juiced: every move blooms,
+shakes and rains shards. Ships with a skin economy, case opening and an
+8-player battle royale against AI climbers.
+
+Open `index.html` in a browser. No build step, no dependencies, no server.
+
+## Playing
+
+| Action | How |
+| --- | --- |
+| Move a card | Drag it, or **tap** it to fling it to the best legal spot |
+| Draw | Click the deck (`Space` / `S`) |
+| Undo | `Z` |
+| New deal | `N` |
+| Auto-resolve | `A`, once every tableau card is face up |
+| Mute | `M` |
+
+Build the tableau down in alternating colours, foundations up by suit.
+Standard Klondike rules, draw one, unlimited redeals.
+
+## What's in it
+
+**Juice.** Spring-physics card movement, 3D flips, shockwave rings, particle
+bursts, screen shake, brief slow-motion on foundation plays, chromatic
+aberration on impact, bloom, scanlines, a custom cursor with a trail, and a
+full card cascade on the win. A combo multiplier (up to ×15) escalates every
+chained scoring move.
+
+**Economy.** Two currencies: shards earned by playing, and premium gems.
+43 cosmetics across three slots — 19 card faces, 12 sleeves, 12 tables — with
+five rarity tiers. Ten of the card skins are animated (fire, water, frost,
+lightning, petals, an accretion disc…), rendered as pre-baked 30-frame sprite
+loops so they cost one blit per card at runtime.
+
+**Cases.** Two crates with published odds, openable ×1, ×5 or ×10. Single
+opens run a CS:GO-style carousel; multi-opens flip a grid of tiles one at a
+time. Duplicates convert to shards automatically.
+
+**Battle royale.** You plus seven AI climbers on the same seeded deal. The
+lowest score is cut every 20 seconds until one is left. Placement pays out in
+shards, gems and free cases.
+
+Progress lives in `localStorage`, so it is per-browser and never leaves the
+machine.
+
+## Performance
+
+Everything renders to canvas through a cached pipeline: card faces are baked
+to sprites once per skin change instead of being redrawn per frame, the table
+background is drawn at half resolution and refreshed on an interval derived
+from its own measured cost, and bloom recomputes at 60 Hz even when the game
+runs at 120.
+
+The frame time is sampled continuously and the effect tier steps itself down
+(Max → Calm → Potato) if the machine can't keep up, adjusting particle caps,
+sprite resolution, bloom and post-processing. The **FX** button overrides it;
+current fps and tier are shown under the shard counter.
+
+`prefers-reduced-motion` is honoured — it starts in the calmest tier.
+
+## Layout
+
+    index.html    the whole game: markup, styles, engine, catalogue
+
+Deliberately one file. It is meant to survive being emailed, dropped on a USB
+stick, or opened straight off a network share.
