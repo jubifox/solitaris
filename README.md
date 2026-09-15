@@ -32,7 +32,7 @@ chained scoring move.
 
 **Economy.** Two currencies: shards earned by playing, and premium gems.
 **95 cosmetics** across three slots — 34 card faces, 32 sleeves, 29 tables —
-in five rarity tiers. Forty-three are animated (fire, water, frost, lightning,
+in five rarity tiers. Forty-six are animated (fire, water, frost, lightning,
 petals, a cyclone eye, an accretion disc, clockwork gears, aurora curtains…),
 rendered as pre-baked 30-frame sprite loops so they cost one blit per card at
 runtime.
