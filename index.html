@@ -404,6 +404,15 @@ function starPath(c,cx,cy,rIn,rOut,pts){
   c.closePath();
 }
 function hexRgb(h){ h = h.replace('#',''); var n = parseInt(h,16); return ((n>>16)&255)+','+((n>>8)&255)+','+(n&255); }
+/* Relative luminance (WCAG) of a #rrggbb colour. Used to work out which way a
+   glyph has to be lifted to stay readable on the paper it is printed on. */
+function lumaHex(h){
+  h = h.replace('#','');
+  if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  var n = parseInt(h,16);
+  function ch(v){ v /= 255; return v <= 0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); }
+  return 0.2126*ch((n>>16)&255) + 0.7152*ch((n>>8)&255) + 0.0722*ch(n&255);
+}
 /* seeded RNG (mulberry32) for BR shared deal */
 function mulberry(seed){
   return function(){
@@ -682,6 +691,20 @@ var PIPS = {
 function drawPipField(c, card, w, h, th){
   var glyph = SUITS[card.suit];
   var col = th.pip(card.suit);
+  /* Rank and suit are the only marks on a card that have to be read at a
+     glance, and a fair few skins print them in a colour that sits close to
+     their own paper. A soft shadow in the opposite polarity lifts every glyph
+     off its background without touching the palette the skin was built around;
+     skins that already glow their corners keep doing that instead. */
+  var haloCol = th.halo;
+  if (haloCol === undefined){
+    var paperL = th.paper == null ? (th.cornerGlow ? 0.03 : 0.6) : th.paper;
+    haloCol = paperL > 0.20 ? 'rgba(10,6,20,0.62)' : 'rgba(238,245,255,0.5)';
+  }
+  function lift(blur){
+    if (th.cornerGlow){ c.shadowColor = col; c.shadowBlur = w*blur*1.45; }
+    else if (haloCol){ c.shadowColor = haloCol; c.shadowBlur = w*blur; }
+  }
   /* watermark */
   c.save(); c.globalAlpha = th.wm==null?0.06:th.wm; c.fillStyle = col;
   c.font = '700 ' + (w*0.95) + 'px Oswald, sans-serif';
@@ -690,12 +713,12 @@ function drawPipField(c, card, w, h, th){
   function corner(){
     var pad = w*0.09;
     c.textAlign = 'left'; c.textBaseline = 'top'; c.fillStyle = col;
-    if (th.cornerGlow){ c.shadowColor = col; c.shadowBlur = w*0.08; }
+    lift(0.055);
     c.font = '600 ' + (w*0.22) + 'px Oswald, sans-serif';
     c.fillText(RANKS[card.rank], -w/2+pad, -h/2+pad*0.7);
     c.font = (w*0.15) + 'px Oswald, sans-serif';
     c.fillText(glyph, -w/2+pad+(card.rank===10?w*0.02:0), -h/2+pad*0.7+w*0.23);
-    c.shadowBlur = 0;
+    c.shadowBlur = 0; c.shadowColor = 'rgba(0,0,0,0)';
   }
   c.save(); corner(); c.restore();
   c.save(); c.rotate(Math.PI); corner(); c.restore();
@@ -703,21 +726,22 @@ function drawPipField(c, card, w, h, th){
   var ix = w*0.62, iy = h*0.68;
   if (card.rank >= 2 && card.rank <= 10){
     c.fillStyle = col; c.textAlign = 'center'; c.textBaseline = 'middle';
-    if (th.cornerGlow){ c.shadowColor = col; c.shadowBlur = w*0.06; }
+    lift(0.042);
     var pl = PIPS[card.rank];
     for (var i=0;i<pl.length;i++){
       var px = (pl[i][0]-0.5)*ix, py = (pl[i][1]-0.5)*iy;
       c.save(); c.translate(px,py); if (pl[i][1] > 0.5) c.rotate(Math.PI);
       c.font = (w*0.20) + 'px Oswald, sans-serif'; c.fillText(glyph,0,0); c.restore();
     }
-    c.shadowBlur = 0;
+    c.shadowBlur = 0; c.shadowColor = 'rgba(0,0,0,0)';
   } else if (card.rank === 1){
     c.save(); c.strokeStyle = col; c.globalAlpha = 0.5; c.lineWidth = Math.max(1.5,w*0.02);
     c.beginPath(); c.arc(0,h*0.02,w*0.26,0,6.283); c.stroke();
     c.globalAlpha = 0.25; c.beginPath(); c.arc(0,h*0.02,w*0.32,0,6.283); c.stroke(); c.restore();
     c.fillStyle = col; c.textAlign = 'center'; c.textBaseline = 'middle';
-    if (th.cornerGlow){ c.shadowColor = col; c.shadowBlur = w*0.12; }
-    c.font = '700 ' + (w*0.42) + 'px Oswald, sans-serif'; c.fillText(glyph,0,h*0.02); c.shadowBlur = 0;
+    lift(0.083);
+    c.font = '700 ' + (w*0.42) + 'px Oswald, sans-serif'; c.fillText(glyph,0,h*0.02);
+    c.shadowBlur = 0; c.shadowColor = 'rgba(0,0,0,0)';
   } else {
     var fc = th.face || SUIT_FX[card.suit];
     var pw = w*0.62, ph = h*0.56;
@@ -730,8 +754,12 @@ function drawPipField(c, card, w, h, th){
     c.strokeStyle = fc; c.globalAlpha = 0.55; c.lineWidth = Math.max(1,w*0.016);
     starPath(c,0,0,w*0.12,w*0.26, card.rank===11?6:(card.rank===12?8:12)); c.stroke(); c.globalAlpha = 1;
     c.fillStyle = th.faceLetter || '#fbf6ea'; c.font = '600 ' + (w*0.40) + 'px Cinzel, serif';
-    c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(RANKS[card.rank],0,-h*0.02);
-    c.fillStyle = fc; c.font = (w*0.22)+'px Oswald, sans-serif'; c.fillText(glyph,0,h*0.16); c.restore();
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    /* the plaque is always dark, so the lift here is always a light one */
+    c.shadowColor = 'rgba(8,5,16,0.6)'; c.shadowBlur = w*0.05;
+    c.fillText(RANKS[card.rank],0,-h*0.02);
+    c.fillStyle = fc; c.font = (w*0.22)+'px Oswald, sans-serif'; c.fillText(glyph,0,h*0.16);
+    c.shadowBlur = 0; c.shadowColor = 'rgba(0,0,0,0)'; c.restore();
   }
 }
 
@@ -741,13 +769,13 @@ function facePaper(c,card,w,h,g0,g1,pipFn,frame){
   c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
   if (frame){ c.strokeStyle = frame; c.lineWidth = Math.max(1,w*0.016);
     rrpath(c,-w/2+w*0.05,-h/2+w*0.05,w-w*0.1,h-w*0.1,w*0.05); c.stroke(); }
-  drawPipField(c,card,w,h,{ pip:pipFn });
+  drawPipField(c,card,w,h,{ pip:pipFn, paper:(lumaHex(g0)+lumaHex(g1))/2 });
   c.strokeStyle = isRed(card.suit)?'rgba(226,58,99,0.45)':'rgba(80,120,200,0.4)';
   c.lineWidth = Math.max(1,w*0.014); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.stroke();
 }
-var pipTrad = function(s){ return isRed(s)?'#e23a63':'#1b1633'; };
+var pipTrad = function(s){ return isRed(s)?'#c81137':'#141029'; };
 var pipNeon = function(s){ return isRed(s)?'#ff5b8f':'#57e0ff'; };
-var pipGold = function(s){ return isRed(s)?'#e6902f':'#caa23a'; };
+var pipGold = function(s){ return isRed(s)?'#b81f24':'#4a3a10'; };
 var pipInk  = function(s){ return isRed(s)?'#ff8fae':'#cfe0ff'; };
 
 var CATALOG = {
@@ -766,7 +794,7 @@ var CATALOG = {
     } },
   card_flame:{ type:'card', name:'Emberwake', rarity:'epic', price:{shards:2600}, animated:true,
     face:function(c,card,w,h){
-      facePaper(c,card,w,h,'#20140f','#140b09',function(s){ return isRed(s)?'#ff9a55':'#ffd27a'; },'rgba(255,120,40,0.35)');
+      facePaper(c,card,w,h,'#20140f','#140b09',function(s){ return isRed(s)?'#ff5f37':'#ffeccb'; },'rgba(255,120,40,0.35)');
       c.strokeStyle='rgba(60,20,10,0.6)'; c.lineWidth=w*0.05; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.stroke();
     },
     frame:function(c,w,h,ph){
@@ -795,7 +823,7 @@ var CATALOG = {
     } },
   card_aqua:{ type:'card', name:'Tidewater', rarity:'epic', price:{shards:2600}, animated:true,
     face:function(c,card,w,h){
-      facePaper(c,card,w,h,'#dff0f6','#bcdfe9',function(s){ return isRed(s)?'#e0507a':'#1e6f8c'; },'rgba(30,120,150,0.4)');
+      facePaper(c,card,w,h,'#dff0f6','#bcdfe9',function(s){ return isRed(s)?'#c11f4f':'#0d4a63'; },'rgba(30,120,150,0.4)');
     },
     frame:function(c,w,h,ph){
       c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
@@ -803,12 +831,12 @@ var CATALOG = {
       for (var b=0;b<3;b++){
         var yy = -h/2 + ((ph + b*0.34) % 1) * h;
         var g = c.createLinearGradient(0,yy-h*0.09,0,yy+h*0.09);
-        cs(g,0,'rgba(120,220,255,0)'); cs(g,0.5,'rgba(160,235,255,0.28)'); cs(g,1,'rgba(120,220,255,0)');
+        cs(g,0,'rgba(120,220,255,0)'); cs(g,0.5,'rgba(160,235,255,0.16)'); cs(g,1,'rgba(120,220,255,0)');
         c.fillStyle = g; c.fillRect(-w/2,yy-h*0.09,w,h*0.18);
       }
       for (var k=0;k<4;k++){
         var cx = -w/2 + ((k*0.29 + ph*0.4)%1)*w, cy = -h/2 + ((k*0.53 + ph*0.25)%1)*h;
-        c.globalAlpha = 0.14;
+        c.globalAlpha = 0.08;
         c.drawImage(glowSprite, cx-w*0.22, cy-w*0.22, w*0.44, w*0.44);
       }
       c.globalAlpha = 0.5; c.strokeStyle = 'rgba(200,245,255,0.5)'; c.lineWidth = w*0.02;
@@ -859,11 +887,11 @@ var CATALOG = {
     } },
   card_prismatic:{ type:'card', name:'Prism Royale', rarity:'mythic', price:{gems:150}, animated:true,
     face:function(c,card,w,h){
-      facePaper(c,card,w,h,'#f2f4f8','#d9dee8',function(s){ return isRed(s)?'#d0447a':'#3a3f66'; },'rgba(200,200,220,0.6)');
+      facePaper(c,card,w,h,'#f2f4f8','#d9dee8',function(s){ return isRed(s)?'#c01d5c':'#25294d'; },'rgba(200,200,220,0.6)');
     },
     frame:function(c,w,h,ph){
       c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
-      c.globalCompositeOperation='overlay'; c.globalAlpha = 0.5;
+      c.globalCompositeOperation='overlay'; c.globalAlpha = 0.32;
       var a = ph*6.283;
       var g = c.createLinearGradient(-w, Math.sin(a)*h, w, -Math.sin(a)*h);
       cs(g,0,'#ff3b6b'); cs(g,0.2,'#ffb03c'); cs(g,0.4,'#5dff9b'); cs(g,0.6,'#3ef0ff'); cs(g,0.8,'#7c5bff'); cs(g,1,'#ff3b6b');
@@ -879,7 +907,7 @@ var CATALOG = {
 
   card_bone:{ type:'card', name:'Bonework', rarity:'common', price:{shards:350}, animated:false,
     face:function(c,card,w,h){
-      facePaper(c,card,w,h,'#f4efe2','#d9cfba',function(s){ return isRed(s)?'#b23a4e':'#2c2a26'; },'rgba(90,78,60,0.28)');
+      facePaper(c,card,w,h,'#f4efe2','#d9cfba',function(s){ return isRed(s)?'#a3172f':'#211f1c'; },'rgba(90,78,60,0.28)');
       c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
       c.globalAlpha = 0.07; c.fillStyle = '#6b5a44';
       for (var i=0;i<44;i++) c.fillRect(rnd(-w/2,w/2), rnd(-h/2,h/2), rnd(1,3), rnd(1,3));
@@ -887,7 +915,7 @@ var CATALOG = {
     } },
   card_verdant:{ type:'card', name:'Verdant', rarity:'rare', price:{shards:700}, animated:false,
     face:function(c,card,w,h){
-      facePaper(c,card,w,h,'#eef6ea','#cbe0c4',function(s){ return isRed(s)?'#c0453f':'#1e4d2b'; },'rgba(40,110,60,0.42)');
+      facePaper(c,card,w,h,'#eef6ea','#cbe0c4',function(s){ return isRed(s)?'#b01a1a':'#123a1e'; },'rgba(40,110,60,0.42)');
       c.save(); c.strokeStyle = 'rgba(40,110,60,0.22)'; c.lineWidth = Math.max(1,w*0.012);
       for (var i=0;i<3;i++){
         var yy = -h/2 + h*0.16 + i*h*0.30;
@@ -900,24 +928,24 @@ var CATALOG = {
     } },
   card_ruby:{ type:'card', name:'Ruby Velvet', rarity:'rare', price:{shards:700}, animated:false,
     face:function(c,card,w,h){
-      facePaper(c,card,w,h,'#3a0a18','#1c050b',function(s){ return isRed(s)?'#ff92a9':'#f2dae0'; },'rgba(255,140,170,0.35)');
+      facePaper(c,card,w,h,'#3a0a18','#1c050b',function(s){ return isRed(s)?'#ff7d99':'#dfe9ff'; },'rgba(255,140,170,0.35)');
       c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.12;
       var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#ff5b7f'); cs(g,1,'rgba(0,0,0,0)');
       c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill(); c.restore();
     } },
   card_sand:{ type:'card', name:'Duneglass', rarity:'rare', price:{shards:950}, animated:true,
     face:function(c,card,w,h){
-      facePaper(c,card,w,h,'#f0e0bd','#d6ba88',function(s){ return isRed(s)?'#b4442f':'#4a3418'; },'rgba(120,90,40,0.4)');
+      facePaper(c,card,w,h,'#f0e0bd','#d6ba88',function(s){ return isRed(s)?'#a81a12':'#2b2109'; },'rgba(120,90,40,0.4)');
     },
     frame:function(c,w,h,ph){
       c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip(); c.globalCompositeOperation='lighter';
       for (var i=0;i<22;i++){
         var gx = -w/2 + (((i*0.137) + ph*0.9)%1)*w;
         var gy = -h/2 + ((i*0.379)%1)*h + Math.sin(ph*6.283+i)*h*0.02;
-        c.globalAlpha = 0.35; c.fillStyle = i%2?'#fff0cc':'#e8c98f';
+        c.globalAlpha = 0.26; c.fillStyle = i%2?'#fff0cc':'#e8c98f';
         c.fillRect(gx,gy,w*0.022,w*0.012);
       }
-      c.globalAlpha = 0.10 + 0.05*Math.sin(ph*6.283);
+      c.globalAlpha = 0.06 + 0.03*Math.sin(ph*6.283);
       var g = c.createLinearGradient(-w/2,h/2,w/2,-h/2);
       cs(g,0,'rgba(255,200,120,0.5)'); cs(g,1,'rgba(255,255,255,0)');
       c.fillStyle = g; c.fillRect(-w/2,-h/2,w,h);
@@ -949,7 +977,7 @@ var CATALOG = {
     } },
   card_frost:{ type:'card', name:'Rimebound', rarity:'epic', price:{shards:2600}, animated:true,
     face:function(c,card,w,h){
-      facePaper(c,card,w,h,'#eaf6ff','#bfd9ee',function(s){ return isRed(s)?'#d2436b':'#1c4f77'; },'rgba(120,190,230,0.5)');
+      facePaper(c,card,w,h,'#eaf6ff','#bfd9ee',function(s){ return isRed(s)?'#bc1747':'#123a5e'; },'rgba(120,190,230,0.5)');
     },
     frame:function(c,w,h,ph){
       c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip(); c.globalCompositeOperation='lighter';
@@ -965,7 +993,7 @@ var CATALOG = {
           c.lineTo(cn[0]+cn[2]*Math.cos(a)*L, cn[1]+cn[3]*Math.sin(a)*L); c.stroke();
         }
       }
-      c.globalAlpha = 0.18 + 0.18*Math.sin(ph*6.283+1);
+      c.globalAlpha = 0.09 + 0.09*Math.sin(ph*6.283+1);
       var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2);
       cs(g,0,'rgba(180,230,255,0.5)'); cs(g,1,'rgba(255,255,255,0)');
       c.fillStyle = g; c.fillRect(-w/2,-h/2,w,h);
@@ -994,7 +1022,7 @@ var CATALOG = {
     } },
   card_marble:{ type:'card', name:'Onyx & Gold', rarity:'legendary', price:{shards:5600}, animated:false,
     face:function(c,card,w,h){
-      facePaper(c,card,w,h,'#14131a','#08080c',function(s){ return isRed(s)?'#ffb1c4':'#f0e3c0'; },null);
+      facePaper(c,card,w,h,'#14131a','#08080c',function(s){ return isRed(s)?'#ff87a4':'#ffe9a8'; },null);
       c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
       c.strokeStyle = 'rgba(245,197,66,0.30)'; c.lineWidth = Math.max(1,w*0.009);
       for (var v=0;v<7;v++){
@@ -1009,7 +1037,7 @@ var CATALOG = {
     } },
   card_bloom:{ type:'card', name:'Hanami', rarity:'legendary', price:{gems:65}, animated:true,
     face:function(c,card,w,h){
-      facePaper(c,card,w,h,'#fdf1f5','#eccfdc',function(s){ return isRed(s)?'#c2185b':'#4a2c4f'; },'rgba(200,120,160,0.45)');
+      facePaper(c,card,w,h,'#fdf1f5','#eccfdc',function(s){ return isRed(s)?'#b3004e':'#34203a'; },'rgba(200,120,160,0.45)');
     },
     frame:function(c,w,h,ph){
       c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
@@ -1059,7 +1087,7 @@ var CATALOG = {
   /* ---- faces portees depuis solitaire-deluxe ---- */
   card_papier:{ type:'card', name:'Papier Vintage', rarity:'common', price:{shards:380}, animated:false,
     face:function(c,card,w,h){
-      facePaper(c,card,w,h,'#f7eeda','#e4d3ac',function(s){ return isRed(s)?'#a3301a':'#2f2316'; },'rgba(90,60,20,0.36)');
+      facePaper(c,card,w,h,'#f7eeda','#e4d3ac',function(s){ return isRed(s)?'#a82410':'#241a0f'; },'rgba(90,60,20,0.36)');
       c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
       c.globalAlpha = 0.3; c.strokeStyle = 'rgba(120,80,30,0.45)'; c.lineWidth = 1;
       for (var x=-w/2;x<w/2;x+=w*0.045){ c.beginPath(); c.moveTo(x,-h/2); c.lineTo(x+h*0.05,h/2); c.stroke(); }
@@ -1091,7 +1119,7 @@ var CATALOG = {
     } },
   card_botanik:{ type:'card', name:'Herbier', rarity:'rare', price:{shards:820}, animated:false,
     face:function(c,card,w,h){
-      facePaper(c,card,w,h,'#f7f3e4','#e6dec4',function(s){ return isRed(s)?'#9c4322':'#28331f'; },'rgba(70,80,45,0.36)');
+      facePaper(c,card,w,h,'#f7f3e4','#e6dec4',function(s){ return isRed(s)?'#9b2a10':'#1c2615'; },'rgba(70,80,45,0.36)');
       c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip(); c.globalAlpha = 0.3;
       var b1 = c.createRadialGradient(-w*0.28,h*0.28,0,-w*0.28,h*0.28,w*0.42);
       cs(b1,0,'rgba(90,120,60,0.6)'); cs(b1,1,'rgba(0,0,0,0)');
@@ -1670,22 +1698,55 @@ function matAurora(c,W,H,t,cols){
 function matGrid(c,W,H,t,col,step){
   c.strokeStyle = col; c.lineWidth = 1;
   var off = (t*8) % step;
-  for (var x=-off;x<W;x+=step){ c.beginPath(); c.moveTo(x,0); c.lineTo(x,H); c.stroke(); }
-  for (var y=0;y<H;y+=step){ c.beginPath(); c.moveTo(0,y); c.lineTo(W,y); c.stroke(); }
+  /* one path, one stroke — a beginPath/stroke pair per line was the single
+     biggest cost in the grid-backed tables */
+  c.beginPath();
+  for (var x=-off;x<W;x+=step){ c.moveTo(x,0); c.lineTo(x,H); }
+  for (var y=0;y<H;y+=step){ c.moveTo(0,y); c.lineTo(W,y); }
+  c.stroke();
+}
+/* Parts of a table never move — a skyline, a sun, the radial half of a
+   perspective grid. Bake those once per size and blit them instead of
+   re-running the geometry on every refresh. */
+var _matSprites = {};
+var _discGrads = null;
+function matSprite(key, W, H, fn){
+  var k = key + '|' + Math.round(W) + 'x' + Math.round(H);
+  var cv = _matSprites[k];
+  if (!cv){
+    cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(W)); cv.height = Math.max(1, Math.round(H));
+    fn(cv.getContext('2d'), cv.width, cv.height);
+    /* the table is re-baked on every resize; don't let old sizes pile up */
+    var keys = Object.keys(_matSprites);
+    if (keys.length > 24) delete _matSprites[keys[0]];
+    _matSprites[k] = cv;
+  }
+  return cv;
 }
 function matVignette(c,W,H,str){
   var vg = c.createRadialGradient(W/2,H*0.44,Math.min(W,H)*0.3,W/2,H*0.5,Math.max(W,H)*0.75);
   cs(vg,0,'rgba(0,0,0,0)'); cs(vg,1,'rgba(2,1,7,' + (str==null?0.6:str) + ')');
   c.fillStyle = vg; c.fillRect(0,0,W,H);
 }
+var STAR_BUCKETS = 4;
 function matStars(c,W,H,t,n,twinkle){
   c.save(); c.globalCompositeOperation='lighter';
   c.fillStyle = '#cfdcff';           /* one colour: halves the state changes */
+  /* Sorting the field into a handful of brightness buckets turns n alpha
+     changes and n fillRects into four fills — the twinkle still reads. */
+  var paths = [];
+  for (var b=0;b<STAR_BUCKETS;b++) paths.push(new Path2D());
   for (var i=0;i<n;i++){
     var sx = ((i*127.31)%1)*W, sy = ((i*311.7)%1)*H;
-    c.globalAlpha = (twinkle ? (0.25 + 0.6*Math.abs(Math.sin(t*1.4 + i*0.9))) : 0.55) * 0.8;
+    var a = (twinkle ? (0.25 + 0.6*Math.abs(Math.sin(t*1.4 + i*0.9))) : 0.55);
+    var bi = clamp(Math.floor(a*STAR_BUCKETS/0.86), 0, STAR_BUCKETS-1);
     var s = 1 + (i%3)*0.6;
-    c.fillRect(sx, sy, s, s);
+    paths[bi].rect(sx, sy, s, s);
+  }
+  for (var b2=0;b2<STAR_BUCKETS;b2++){
+    c.globalAlpha = ((b2+0.5)/STAR_BUCKETS*0.86) * 0.8;
+    c.fill(paths[b2]);
   }
   c.restore();
 }
@@ -1838,21 +1899,29 @@ function matVolcanic(c,W,H,t){
 function matArcade(c,W,H,t){
   matBase(c,W,H,'#160a2e','#1d0b33','#08030f');
   var hz = H*0.52;
+  /* The sun and the radiating half of the grid never move — only the horizontal
+     lines scroll — so they are baked once per size and blitted. */
+  var still = matSprite('arcade-still', W, H, function(g,W2,H2){
+    var hz2 = H2*0.52;
+    g.save(); g.globalCompositeOperation='lighter';
+    var sg = g.createLinearGradient(0,hz2-H2*0.28,0,hz2);
+    cs(sg,0,'#ffd34d'); cs(sg,0.5,'#ff6ab5'); cs(sg,1,'#ff2e8b');
+    g.fillStyle = sg;
+    g.beginPath(); g.arc(W2*0.5, hz2, H2*0.2, Math.PI, 0); g.fill();
+    g.globalCompositeOperation='destination-out';
+    for (var b=0;b<6;b++){ var by = hz2 - H2*0.2 + H2*0.035 + b*H2*0.03; g.fillRect(0, by, W2, H2*0.012*(1+b*0.3)); }
+    g.restore();
+    g.save();
+    g.strokeStyle = 'rgba(62,240,255,0.32)'; g.lineWidth = Math.max(1, W2/900);
+    g.beginPath();
+    for (var i=-10;i<=10;i++){ g.moveTo(W2*0.5 + i*W2*0.03, hz2); g.lineTo(W2*0.5 + i*W2*0.55, H2); }
+    g.stroke(); g.restore();
+  });
   c.save(); c.globalCompositeOperation='lighter';
-  /* sun */
-  var sg = c.createLinearGradient(0,hz-H*0.28,0,hz);
-  cs(sg,0,'#ffd34d'); cs(sg,0.5,'#ff6ab5'); cs(sg,1,'#ff2e8b');
-  c.fillStyle = sg;
-  c.beginPath(); c.arc(W*0.5, hz, H*0.2, Math.PI, 0); c.fill();
-  c.globalCompositeOperation='destination-out';
-  for (var b=0;b<6;b++){ var by = hz - H*0.2 + H*0.035 + b*H*0.03; c.fillRect(0, by, W, H*0.012*(1+b*0.3)); }
+  c.drawImage(still, 0, 0, W, H);
   c.restore();
   c.save(); c.globalCompositeOperation='lighter';
-  /* perspective grid */
   c.strokeStyle = 'rgba(62,240,255,0.32)'; c.lineWidth = Math.max(1, W/900);
-  for (var i=-10;i<=10;i++){
-    c.beginPath(); c.moveTo(W*0.5 + i*W*0.03, hz); c.lineTo(W*0.5 + i*W*0.55, H); c.stroke();
-  }
   var scroll = (t*0.35)%1;
   for (var r=0;r<14;r++){
     var f = (r + scroll)/14;
@@ -1890,22 +1959,24 @@ function matNeonCity(c,W,H,t){
   matBase(c,W,H,'#0a0620','#120a2c','#04020c');
   matAurora(c,W,H,t,[{x:0.5,y:0.85,r:0.6,col:'rgba(255,46,139,0.14)',sp:0.05}]);
   matStars(c,W,H*0.6,t,44,true);
-  c.save();
-  /* skyline silhouette */
   var base = H*0.78;
-  var seed = 0;
-  c.fillStyle = '#05030e';
-  c.beginPath(); c.moveTo(0,H);
-  var x = 0;
-  while (x < W){
-    seed = (seed*9301 + 49297) % 233280;
-    var bw = W*(0.03 + (seed/233280)*0.05);
-    seed = (seed*9301 + 49297) % 233280;
-    var bh = H*(0.06 + (seed/233280)*0.20);
-    c.lineTo(x, base - bh); c.lineTo(x+bw, base - bh);
-    x += bw;
-  }
-  c.lineTo(W,H); c.closePath(); c.fill();
+  /* The skyline is deterministic and never moves; only its windows blink. */
+  var sky = matSprite('neoncity-skyline', W, H, function(g,W2,H2){
+    var base2 = H2*0.78, seed = 0, x = 0;
+    g.fillStyle = '#05030e';
+    g.beginPath(); g.moveTo(0,H2);
+    while (x < W2){
+      seed = (seed*9301 + 49297) % 233280;
+      var bw = W2*(0.03 + (seed/233280)*0.05);
+      seed = (seed*9301 + 49297) % 233280;
+      var bh = H2*(0.06 + (seed/233280)*0.20);
+      g.lineTo(x, base2 - bh); g.lineTo(x+bw, base2 - bh);
+      x += bw;
+    }
+    g.lineTo(W2,H2); g.closePath(); g.fill();
+  });
+  c.drawImage(sky, 0, 0, W, H);
+  c.save();
   /* windows */
   c.globalCompositeOperation='lighter';
   for (var i=0;i<70;i++){
@@ -1925,16 +1996,26 @@ function matSingularity(c,W,H,t){
   matStars(c,W,H,t,70,true);
   var cx = W*0.5, cy = H*0.46, R = Math.min(W,H)*0.30;
   c.save(); c.globalCompositeOperation='lighter';
-  /* accretion disc */
+  /* accretion disc — only the rotation changes between refreshes, and the
+     gradients are built in the rotated frame, so they survive across frames */
+  if (!_discGrads || _discGrads.key !== W + 'x' + H){
+    _discGrads = { key: W + 'x' + H, g: [] };
+    for (var gi=0;gi<14;gi++){
+      var grr = R*(0.55 + (gi/14)*1.5);
+      /* same coordinates as before — they are consumed under the ring's own
+         transform, so caching them must not move them */
+      var gg = c.createLinearGradient(cx-grr, cy, cx+grr, cy);
+      cs(gg,0,'rgba(255,140,40,0)'); cs(gg,0.35,'rgba(255,170,60,0.9)');
+      cs(gg,0.6,'rgba(180,120,255,0.8)'); cs(gg,1,'rgba(120,60,255,0)');
+      _discGrads.g.push(gg);
+    }
+  }
   for (var i=0;i<14;i++){
     var f = i/14;
     var rr = R*(0.55 + f*1.5);
     var rot = t*(0.5 - f*0.32) + f*3;
     c.globalAlpha = (1-f)*0.30;
-    var g = c.createLinearGradient(cx-rr, cy, cx+rr, cy);
-    cs(g,0,'rgba(255,140,40,0)'); cs(g,0.35,'rgba(255,170,60,0.9)');
-    cs(g,0.6,'rgba(180,120,255,0.8)'); cs(g,1,'rgba(120,60,255,0)');
-    c.strokeStyle = g; c.lineWidth = Math.max(1.2, R*0.045*(1-f));
+    c.strokeStyle = _discGrads.g[i]; c.lineWidth = Math.max(1.2, R*0.045*(1-f));
     c.save(); c.translate(cx,cy); c.rotate(rot); c.scale(1, 0.28);
     c.beginPath(); c.arc(0,0,rr,0,6.283); c.stroke();
     c.restore();
@@ -3340,13 +3421,34 @@ function toast(msg, kind){
 var bgDirty = true, bgNextRefresh = 0, bloomNext = 0;
 var BG_SCALE = 0.5;
 var bgCost = 6;
+/* The table is redrawn on an interval, not every frame — so between two redraws
+   the picture would sit perfectly still and then jump. Two buffers and a
+   crossfade turn that jump into a dissolve: the eye reads a continuous pan
+   instead of a slideshow, which is what made the busy tables look choppy. */
+var bgPrevC = document.createElement('canvas');
+var bgPrevX = bgPrevC.getContext('2d');
+var bgFade = 1, bgFadeDur = 0, bgFadeLast = 0, bgHasPrev = false, bgStatic = false;
+function bgIsAnimated(){
+  var mat = CATALOG[equip.mat] || CATALOG[MAT_DEFAULT];
+  return mat.animated !== false;
+}
 function refreshBG(){
   var mat = CATALOG[equip.mat] || CATALOG[MAT_DEFAULT];
   var scale = perfTier >= 2 ? BG_SCALE : (perfTier === 1 ? 0.38 : 0.28);
   var bw = Math.max(2, Math.floor(VW * scale));
   var bh = Math.max(2, Math.floor(VH * scale));
-  if (bgC.width !== bw) bgC.width = bw;
-  if (bgC.height !== bh) bgC.height = bh;
+  var resized = (bgC.width !== bw || bgC.height !== bh);
+  /* Keep the outgoing frame so we can dissolve out of it. Skipped on a resize
+     or a skin swap, where the old image is not the same picture at all. */
+  var wantFade = bgHasPrev && !resized && !bgDirty && perfTier >= 1 && !bgStatic;
+  if (wantFade){
+    if (bgPrevC.width !== bw) bgPrevC.width = bw;
+    if (bgPrevC.height !== bh) bgPrevC.height = bh;
+    bgPrevX.setTransform(1,0,0,1,0,0);
+    bgPrevX.clearRect(0,0,bw,bh);
+    bgPrevX.drawImage(bgC,0,0);
+  }
+  if (resized){ bgC.width = bw; bgC.height = bh; }
   var t0 = performance.now();
   bgX.setTransform(bw/VW, 0, 0, bh/VH, 0, 0);
   bgX.clearRect(0,0,VW,VH);
@@ -3355,6 +3457,17 @@ function refreshBG(){
      one actually costs and space out its refreshes accordingly. */
   bgCost = bgCost*0.6 + (performance.now() - t0)*0.4;
   bgDirty = false;
+  bgHasPrev = true;
+  bgStatic = !bgIsAnimated();
+  bgFade = wantFade ? 0 : 1;
+}
+function drawBG(c){
+  if (bgFade >= 1 || !bgPrevC.width){ c.drawImage(bgC, 0, 0, VW, VH); return; }
+  c.drawImage(bgPrevC, 0, 0, VW, VH);
+  c.save();
+  c.globalAlpha = bgFade;
+  c.drawImage(bgC, 0, 0, VW, VH);
+  c.restore();
 }
 function initBokeh(){
   bokeh = [];
@@ -3738,12 +3851,18 @@ function buildScanPattern(){
 function render(){
   /* scene offscreen */
   sctx.setTransform(DPR,0,0,DPR,0,0);
-  if (bgDirty || nowMs >= bgNextRefresh){
+  /* A table that never moves is drawn once and then left alone — no point
+     re-running a marble-vein routine sixty times a second for a still image. */
+  if (bgDirty || (!bgStatic && nowMs >= bgNextRefresh)){
     refreshBG();
-    /* keep the table redraw under ~8% of a frame budget, whatever it costs */
-    bgNextRefresh = nowMs + clamp(bgCost * 12, perfTier <= 0 ? 300 : 120, 800);
+    /* Keep the table redraw well under a frame budget, whatever it costs; the
+       crossfade below covers the gap, so a cheap table can also refresh fast. */
+    bgFadeDur = clamp(bgCost * 8, perfTier <= 0 ? 260 : 40, 420);
+    bgNextRefresh = nowMs + bgFadeDur;
   }
-  sctx.drawImage(bgC, 0, 0, VW, VH);
+  if (bgFade < 1 && bgFadeDur > 0) bgFade = clamp(bgFade + (nowMs - bgFadeLast) / bgFadeDur, 0, 1);
+  bgFadeLast = nowMs;
+  drawBG(sctx);
   drawBokeh(sctx);
   drawSlots(sctx);
   buildRenderList();
