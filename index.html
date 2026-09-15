@@ -4506,24 +4506,52 @@ var NAV_CELL = 20;
 var HUB_NAV = null;
 function navBuild(){
   var cols = Math.ceil(HUB.W/NAV_CELL), rows = Math.ceil(HUB.H/NAV_CELL);
-  var raw = new Uint8Array(cols*rows), x, y;
-  /* A tree is barely wider than a cell, and one whose middle lands between four
-     cell centres slips through a centre-only test completely — the grid then
-     reports open ground and the route walks straight into it. Test the corners
-     as well as the middle. */
-  var h = NAV_CELL/2;
-  for (y=0;y<rows;y++) for (x=0;x<cols;x++){
-    var px = x*NAV_CELL + h, py = y*NAV_CELL + h;
-    if (hubSolid(px, py) ||
-        hubSolid(px - h, py - h) || hubSolid(px + h, py - h) ||
-        hubSolid(px - h, py + h) || hubSolid(px + h, py + h)) raw[y*cols + x] = 1;
+  var raw = new Uint8Array(cols*rows), i;
+  /* Draw the obstacles into the grid rather than sampling the grid against
+     them. Sampling could miss anything smaller than a cell — a tree whose
+     middle fell between four sample points left no mark at all — and cost a
+     hundred-millisecond stutter on the first click. Stamping each obstacle's
+     footprint cannot miss, and is a couple of thousand writes. */
+  function mark(x0, y0, x1, y1){
+    var cx0 = clamp(Math.floor(x0/NAV_CELL), 0, cols-1), cx1 = clamp(Math.floor(x1/NAV_CELL), 0, cols-1);
+    var cy0 = clamp(Math.floor(y0/NAV_CELL), 0, rows-1), cy1 = clamp(Math.floor(y1/NAV_CELL), 0, rows-1);
+    for (var y=cy0;y<=cy1;y++) for (var x=cx0;x<=cx1;x++) raw[y*cols + x] = 1;
   }
+  for (i=0;i<HUB_PLACES.length;i++){
+    var b = HUB_PLACES[i];
+    mark(b.x - 14, b.y - 10, b.x + b.w + 14, b.y + b.h);
+  }
+  /* A tree is a squashed circle, and blocking its whole bounding box would
+     wall off the open corners around it — nearly a tenth of the square. Mark a
+     cell only where the shape itself reaches into it. */
+  function markEllipse(cx, cy, rr, yk){
+    var ry = rr/yk;
+    var ax0 = clamp(Math.floor((cx - rr)/NAV_CELL), 0, cols-1);
+    var ax1 = clamp(Math.floor((cx + rr)/NAV_CELL), 0, cols-1);
+    var ay0 = clamp(Math.floor((cy - ry)/NAV_CELL), 0, rows-1);
+    var ay1 = clamp(Math.floor((cy + ry)/NAV_CELL), 0, rows-1);
+    for (var y=ay0;y<=ay1;y++) for (var x=ax0;x<=ax1;x++){
+      /* nearest point of this cell to the middle of the shape */
+      var qx = clamp(cx, x*NAV_CELL, x*NAV_CELL + NAV_CELL);
+      var qy = clamp(cy, y*NAV_CELL, y*NAV_CELL + NAV_CELL);
+      var ex = qx - cx, ey = (qy - cy)*yk;
+      if (ex*ex + ey*ey < rr*rr) raw[y*cols + x] = 1;
+    }
+  }
+  for (i=0;i<HUB_TREES.length;i++) markEllipse(HUB_TREES[i].x, HUB_TREES[i].y, 21*HUB_TREES[i].r, 1.7);
+  markEllipse(HUB_FOUNTAIN.x, HUB_FOUNTAIN.y, 96, 1.6);
+  /* everything outside the walkable rectangle */
+  mark(0, 0, HUB.W, 222);
+  mark(0, HUB.H - 80, HUB.W, HUB.H);
+  mark(0, 0, 110, HUB.H);
+  mark(HUB.W - 110, 0, HUB.W, HUB.H);
+
   /* grow every obstacle by one cell so a route never scrapes along a wall */
   var pad = new Uint8Array(raw);
-  for (y=0;y<rows;y++) for (x=0;x<cols;x++){
-    if (!raw[y*cols + x]) continue;
+  for (var y2=0;y2<rows;y2++) for (var x2=0;x2<cols;x2++){
+    if (!raw[y2*cols + x2]) continue;
     for (var dy=-1;dy<=1;dy++) for (var dx=-1;dx<=1;dx++){
-      var nx = x + dx, ny = y + dy;
+      var nx = x2 + dx, ny = y2 + dy;
       if (nx >= 0 && ny >= 0 && nx < cols && ny < rows) pad[ny*cols + nx] = 1;
     }
   }
@@ -4555,18 +4583,41 @@ function navFree(i, grid){
   }
   return -1;
 }
-/* Is the straight line between two points clear? Used to iron the grid path
-   back into the few long strides a person would actually take. */
-function navClear(ax, ay, bx, by){
-  var dx = bx - ax, dy = by - ay;
-  /* sampled finely enough that a lamp-post-sized obstacle cannot slip between
-     two samples — a leg that grazes a tree is a leg the character walks into */
-  var n = Math.ceil(Math.sqrt(dx*dx + dy*dy) / 6) + 1;
-  for (var i=0;i<=n;i++){
-    var t = i/n;
-    if (hubSolid(ax + dx*t, ay + dy*t)) return false;
+/* Is the straight line between two points clear? Walked cell by cell across
+   the same grid the route was found on, never diagonally between two corners,
+   so nothing can hide between two samples — testing points along the line
+   every few pixels used to step straight over the corner of a building it
+   clipped by two. The cell you start in is skipped, because you may well be
+   standing against a wall, and the cell you finish in is judged on the real
+   obstacles rather than the padded ones, so you can still walk up to a tree. */
+function navClear(ax, ay, bx, by, loose){
+  if (!HUB_NAV) navBuild();
+  var cols = HUB_NAV.cols, rows = HUB_NAV.rows, raw = HUB_NAV.raw;
+  /* Legs of the route keep a cell clear of every wall; the last step onto the
+     spot you actually clicked only has to miss the wall itself. */
+  var pad = loose ? raw : HUB_NAV.pad;
+  var x0 = Math.floor(ax/NAV_CELL), y0 = Math.floor(ay/NAV_CELL);
+  var x1 = Math.floor(bx/NAV_CELL), y1 = Math.floor(by/NAV_CELL);
+  if (x1 < 0 || y1 < 0 || x1 >= cols || y1 >= rows) return false;
+  if (raw[y1*cols + x1]) return false;
+  var dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  var sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  var err = dx - dy, x = x0, y = y0, first = true;
+  for (var step=0; step <= cols + rows + 4; step++){
+    if (x === x1 && y === y1) return true;
+    if (!first){
+      if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
+      if (pad[y*cols + x]) return false;
+    }
+    first = false;
+    var e2 = 2*err;
+    /* one axis per step, so the walk touches every cell the line passes
+       through instead of cutting diagonally across a corner */
+    if (e2 > -dy){ err -= dy; x += sx; }
+    else if (e2 < dx){ err += dx; y += sy; }
+    else return false;
   }
-  return true;
+  return false;
 }
 var NAV_DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
 function navPath(sx, sy, tx, ty){
@@ -4621,7 +4672,7 @@ function navPath(sx, sy, tx, ty){
      a tree — so it only joins the route if the last leg can reach it straight.
      Otherwise the walk ends on the open ground beside whatever was clicked,
      which is where you wanted to stand anyway. */
-  if (!hubSolid(tx, ty) && navClear(from.x, from.y, tx, ty)) out.push({ x:tx, y:ty });
+  if (!hubSolid(tx, ty) && navClear(from.x, from.y, tx, ty, true)) out.push({ x:tx, y:ty });
   return out;
 }
 function hubGoTo(wx, wy){
