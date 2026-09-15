@@ -3,8 +3,9 @@
 **[▶ Jouer maintenant](https://jubifox.github.io/solitaris/)**
 
 A single-file Klondike solitaire, deliberately over-juiced: every move blooms,
-shakes and rains shards. Ships with a 95-piece skin economy, case opening and
-an 8-player battle royale against AI climbers.
+shakes and rains shards. Around it sits a walkable hub with **ten more games**
+in it, a 99-piece skin economy, case opening, an 8-player battle royale against
+AI climbers, and a season that turns over every four weeks.
 
 One HTML file. No build step, no dependencies, no server — open it and play.
 
@@ -21,6 +22,7 @@ One HTML file. No build step, no dependencies, no server — open it and play.
 | Walk in the hub | Arrows / `WASD`, or click where you want to go |
 | Enter a building | Click it, or stand in its doorway and press `Enter` |
 | Open / leave the hub | `H` / `Esc` |
+| Leave a hub game | `Esc` (again to go back outside) |
 
 Build the tableau down in alternating colours, foundations up by suit.
 Standard Klondike rules, draw one, unlimited redeals.
@@ -34,11 +36,11 @@ full card cascade on the win. A combo multiplier (up to ×15) escalates every
 chained scoring move.
 
 **Economy.** Two currencies: shards earned by playing, and premium gems.
-**95 cosmetics** across three slots — 34 card faces, 32 sleeves, 29 tables —
-in five rarity tiers. Forty-six are animated (fire, water, frost, lightning,
-petals, a cyclone eye, an accretion disc, clockwork gears, aurora curtains…),
-rendered as pre-baked 30-frame sprite loops so they cost one blit per card at
-runtime.
+**99 cosmetics** across three slots — 35 card faces, 33 sleeves, 31 tables —
+in five rarity tiers, four of them season-exclusive. Forty-eight are animated
+(fire, water, frost, lightning, petals, a cyclone eye, an accretion disc,
+clockwork gears, aurora curtains…), rendered as pre-baked 30-frame sprite loops
+so they cost one blit per card at runtime.
 
 **Cases.** Two crates with published odds, openable ×1, ×5 or ×10. Every open
 starts with the crate itself — a shaded box turning on its axis, winding up
@@ -51,11 +53,56 @@ convert to shards automatically.
 
 **Hub.** The game opens here: a plaza you walk a character around — arrows or
 WASD, or click where you want to go — with a doorway for each part of the game.
-You start facing Solitaire Hall, a few steps from a dealt table; The Arena is
+You start facing Solitaire Hall, a few steps from a dealt table. The Arena is
 battle royale, The Market is skins, The Vault holds your unopened crates, and
-the Hall of Records has your run on a board beside it. Walk into a doorway and
-press `Enter` to go in — or just click the building and your character walks
-over and steps through. `H` reopens the hub, `Esc` leaves it.
+the Hall of Records has your run on a board beside it. Three more doorways lead
+to the games below. Walk into a doorway and press `Enter` to go in — or just
+click the building and your character walks over and steps through. `H` reopens
+the hub, `Esc` leaves it.
+
+**Ten more games**, in three venues off the plaza. They all share your wallet
+and your wardrobe: the card games deal with whichever deck and sleeve you have
+equipped, every venue sits on your table felt, and shards won anywhere spend in
+the Market. Each keeps its own personal best.
+
+*The Card Room*
+
+- **Freecell** — eight columns, four cells. Click a card, then click where it
+  goes; runs move together when you have the free cells to carry them, and
+  anything that can never be needed again goes home on its own. `A` sends
+  everything safe home at once.
+- **Pyramid** — twenty-eight cards taken away in pairs that add to thirteen.
+  Kings go alone. Stock, waste and two redeals.
+- **Blackjack** — the one game played with your own shards. Stake 25 to 250,
+  hit, stand or double; dealer stands on 17, blackjack pays 3:2.
+- **Texas Hold'em** — a 120-shard buy-in for a seat against three opponents,
+  1000 chips each, blinds rising every six hands. Real hand evaluation and
+  proper side pots, so a short stack only ever wins what it covered.
+
+*The Arcade*
+
+- **Minesweeper** — 16×16, forty mines. The field is laid after your first
+  click, so it is never a mine and never a bare number. Right-click or `F`
+  flags; clicking a satisfied number opens round it.
+- **Slide Puzzle** — fifteen tiles and a gap, shuffled by walking the gap so
+  the board is always solvable. Click or arrow keys.
+- **Sudoku** — generated fresh each time and pared back only as far as a single
+  answer allows. Wrong digits are refused rather than left to rot.
+
+*The Coliseum*
+
+- **Light Cycles** — a 62×40 grid against a rider that counts the room left
+  through each opening before it turns. Speeds up as you go.
+- **Dice Royale** — thirteen boxes, three rolls a turn, against a rival filling
+  in its own sheet beside yours. Hold dice by clicking them or with `1`–`5`.
+- **Prism Break** — ninety seconds of match-three, cascades multiplying as they
+  chain, board reshuffled rather than left dead.
+
+**Seasons.** Solitaire is here all year; everything else rotates on a 28-day
+season. The current season puts three of the ten games forward and pays double
+on them, and puts one skin in the Market that leaves again when the season
+turns — though anything you have bought stays yours. The hub names the season
+and its picks, and the Hall of Records counts how many venues you have beaten.
 
 **Battle royale.** You plus seven AI climbers on the same seeded deal. The
 lowest score is cut every 20 seconds until one is left. Placement pays out in
