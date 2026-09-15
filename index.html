@@ -4408,7 +4408,7 @@ var HUB = {
   camX:0, camY:0, camReady:false, zoom:1,
   viewW:0, viewH:0,
   near:null, glow:0,
-  moveTo:null, enterOn:null,
+  moveTo:null, path:null, enterOn:null,
   keys:{}
 };
 /* Each place is a facade standing on its own bottom edge, with a doorway in
@@ -4444,7 +4444,7 @@ function hubEnter(){
   HUB.on = true;
   HUB.camReady = false;
   HUB.keys = {};
-  HUB.moveTo = null;
+  HUB.moveTo = null; HUB.path = null;
   if (!HUB_MOTES.length) hubInitMotes();
   paused = true; interactive = false;
   breakCombo();
@@ -4496,6 +4496,148 @@ function hubUse(place){
   toast(SEASON.name + ' · ' + seasonDaysLeft() + 'd left · ' + stats.wins + ' wins · ' +
     stats.brWins + ' crowns · best combo ×' + stats.bestCombo, 'gold');
 }
+/* ---------- getting there ----------
+   The plaza never changes, so it is worth solving properly once: a coarse grid
+   of where you can stand, and a shortest path across it. Leaning against a wall
+   and hoping to slide round it works for a tree; it does not work for a
+   building four hundred pixels wide, which is what used to leave you stopped
+   dead in the middle of the square wondering why the click did nothing. */
+var NAV_CELL = 20;
+var HUB_NAV = null;
+function navBuild(){
+  var cols = Math.ceil(HUB.W/NAV_CELL), rows = Math.ceil(HUB.H/NAV_CELL);
+  var raw = new Uint8Array(cols*rows), x, y;
+  /* A tree is barely wider than a cell, and one whose middle lands between four
+     cell centres slips through a centre-only test completely — the grid then
+     reports open ground and the route walks straight into it. Test the corners
+     as well as the middle. */
+  var h = NAV_CELL/2;
+  for (y=0;y<rows;y++) for (x=0;x<cols;x++){
+    var px = x*NAV_CELL + h, py = y*NAV_CELL + h;
+    if (hubSolid(px, py) ||
+        hubSolid(px - h, py - h) || hubSolid(px + h, py - h) ||
+        hubSolid(px - h, py + h) || hubSolid(px + h, py + h)) raw[y*cols + x] = 1;
+  }
+  /* grow every obstacle by one cell so a route never scrapes along a wall */
+  var pad = new Uint8Array(raw);
+  for (y=0;y<rows;y++) for (x=0;x<cols;x++){
+    if (!raw[y*cols + x]) continue;
+    for (var dy=-1;dy<=1;dy++) for (var dx=-1;dx<=1;dx++){
+      var nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < cols && ny < rows) pad[ny*cols + nx] = 1;
+    }
+  }
+  HUB_NAV = { cols:cols, rows:rows, pad:pad, raw:raw };
+}
+function navIdx(px, py){
+  if (!HUB_NAV) navBuild();
+  var cx = Math.floor(px/NAV_CELL), cy = Math.floor(py/NAV_CELL);
+  if (cx < 0 || cy < 0 || cx >= HUB_NAV.cols || cy >= HUB_NAV.rows) return -1;
+  return cy*HUB_NAV.cols + cx;
+}
+function navXY(i){
+  return { x:(i % HUB_NAV.cols)*NAV_CELL + NAV_CELL/2,
+           y:Math.floor(i / HUB_NAV.cols)*NAV_CELL + NAV_CELL/2 };
+}
+/* Nearest cell you could actually stand in, spiralling outwards. */
+function navFree(i, grid){
+  if (i < 0) return -1;
+  if (!grid[i]) return i;
+  var cols = HUB_NAV.cols, rows = HUB_NAV.rows;
+  var x0 = i % cols, y0 = Math.floor(i / cols);
+  for (var r=1;r<=14;r++){
+    for (var dy=-r;dy<=r;dy++) for (var dx=-r;dx<=r;dx++){
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+      var x = x0 + dx, y = y0 + dy;
+      if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
+      if (!grid[y*cols + x]) return y*cols + x;
+    }
+  }
+  return -1;
+}
+/* Is the straight line between two points clear? Used to iron the grid path
+   back into the few long strides a person would actually take. */
+function navClear(ax, ay, bx, by){
+  var dx = bx - ax, dy = by - ay;
+  /* sampled finely enough that a lamp-post-sized obstacle cannot slip between
+     two samples — a leg that grazes a tree is a leg the character walks into */
+  var n = Math.ceil(Math.sqrt(dx*dx + dy*dy) / 6) + 1;
+  for (var i=0;i<=n;i++){
+    var t = i/n;
+    if (hubSolid(ax + dx*t, ay + dy*t)) return false;
+  }
+  return true;
+}
+var NAV_DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+function navPath(sx, sy, tx, ty){
+  if (!HUB_NAV) navBuild();
+  var cols = HUB_NAV.cols, rows = HUB_NAV.rows, grid = HUB_NAV.pad;
+  var start = navFree(navIdx(sx, sy), grid);
+  var goal  = navFree(navIdx(tx, ty), grid);
+  if (start < 0 || goal < 0) return null;
+  if (start === goal) return [{ x:tx, y:ty }];
+  var prev = new Int32Array(cols*rows); prev.fill(-1);
+  var seen = new Uint8Array(cols*rows);
+  var q = [start], head = 0;
+  seen[start] = 1;
+  var found = false;
+  while (head < q.length){
+    var cur = q[head++];
+    if (cur === goal){ found = true; break; }
+    var cx = cur % cols, cy = (cur / cols)|0;
+    for (var d=0;d<8;d++){
+      var nx = cx + NAV_DIRS[d][0], ny = cy + NAV_DIRS[d][1];
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+      var ni = ny*cols + nx;
+      if (seen[ni] || grid[ni]) continue;
+      /* no squeezing through the diagonal gap between two corners */
+      if (NAV_DIRS[d][0] && NAV_DIRS[d][1] &&
+          (grid[cy*cols + nx] || grid[ny*cols + cx])) continue;
+      seen[ni] = 1; prev[ni] = cur; q.push(ni);
+    }
+  }
+  if (!found) return null;
+  var cells = [];
+  for (var c = goal; c !== -1; c = prev[c]) cells.push(c);
+  cells.reverse();
+  /* string-pull: from where you stand, walk straight at the furthest point on
+     the route you can actually see, and repeat — what is left is the handful
+     of corners a person would really turn at */
+  var pts = cells.map(navXY);
+  /* String-pull: from where you stand, head straight for the furthest cell on
+     the route you can actually see, and repeat. Every cell is a clear cell away
+     from anything solid, so those legs are always safe. */
+  var out = [], from = { x:sx, y:sy }, i = 0;
+  while (i < pts.length){
+    var best = i;
+    for (var k=pts.length-1;k>i;k--){
+      if (navClear(from.x, from.y, pts[k].x, pts[k].y)){ best = k; break; }
+    }
+    out.push(pts[best]);
+    from = pts[best];
+    i = best + 1;
+  }
+  /* The point actually clicked is not safe that way — it can sit right against
+     a tree — so it only joins the route if the last leg can reach it straight.
+     Otherwise the walk ends on the open ground beside whatever was clicked,
+     which is where you wanted to stand anyway. */
+  if (!hubSolid(tx, ty) && navClear(from.x, from.y, tx, ty)) out.push({ x:tx, y:ty });
+  return out;
+}
+function hubGoTo(wx, wy){
+  var path = navPath(HUB.x, HUB.y, wx, wy);
+  if (!path || !path.length){
+    /* nowhere to walk to — leave the character where they are rather than
+       sending them to lean on a wall */
+    HUB.path = null; HUB.moveTo = null; HUB.enterOn = null;
+    SFX.invalid();
+    return false;
+  }
+  HUB.path = path;
+  HUB.moveTo = HUB.path.shift();
+  HUB.stuck = 0;
+  return true;
+}
 function hubPointer(p){
   var wx = p.x/HUB.zoom + HUB.camX, wy = p.y/HUB.zoom + HUB.camY;
   HUB.enterOn = null;
@@ -4505,12 +4647,11 @@ function hubPointer(p){
   for (var i=0;i<HUB_PLACES.length;i++){
     var b = HUB_PLACES[i], d = hubDoor(b);
     if (wx > b.x - 20 && wx < b.x + b.w + 20 && wy > b.y - 72 && wy < d.y + 104){
-      HUB.moveTo = { x:d.x, y:d.y + 46 };
-      HUB.enterOn = b;
+      if (hubGoTo(d.x, d.y + 46)) HUB.enterOn = b;
       return;
     }
   }
-  HUB.moveTo = { x:wx, y:wy };
+  hubGoTo(wx, wy);
 }
 function hubSolid(px, py){
   for (var i=0;i<HUB_PLACES.length;i++){
@@ -4525,7 +4666,9 @@ function hubSolid(px, py){
   /* the fountain in the middle of the plaza */
   var fx = px - HUB_FOUNTAIN.x, fy = (py - HUB_FOUNTAIN.y)*1.6;
   if (fx*fx + fy*fy < 96*96) return true;
-  return px < 110 || px > HUB.W - 110 || py < 190 || py > HUB.H - 80;
+  /* The top edge stops level with the front row's walls, so there is no strip
+     of pavement up there that looks walkable but has no way into it. */
+  return px < 110 || px > HUB.W - 110 || py < 222 || py > HUB.H - 80;
 }
 /* Which way do we have to step to get round whatever is in front of us?
    Probes both sides at growing offsets and takes the first one that opens up;
@@ -4545,12 +4688,19 @@ function hubUpdate(dt){
   var k = HUB.keys;
   var ax = (k.right ? 1 : 0) - (k.left ? 1 : 0);
   var ay = (k.down ? 1 : 0) - (k.up ? 1 : 0);
-  if (ax || ay){ HUB.moveTo = null; HUB.enterOn = null; }
+  /* taking the keys cancels wherever the click was sending you */
+  if (ax || ay){ HUB.moveTo = null; HUB.path = null; HUB.enterOn = null; }
   if (HUB.moveTo){
     var dx = HUB.moveTo.x - HUB.x, dy = HUB.moveTo.y - HUB.y;
     var d = Math.sqrt(dx*dx + dy*dy);
-    if (d < 8) HUB.moveTo = null;
-    else { ax = dx/d; ay = dy/d; }
+    if (d < 10){
+      HUB.moveTo = (HUB.path && HUB.path.length) ? HUB.path.shift() : null;
+      if (HUB.moveTo){
+        dx = HUB.moveTo.x - HUB.x; dy = HUB.moveTo.y - HUB.y;
+        d = Math.sqrt(dx*dx + dy*dy) || 1;
+        ax = dx/d; ay = dy/d;
+      }
+    } else { ax = dx/d; ay = dy/d; }
   }
   var m = Math.sqrt(ax*ax + ay*ay);
   if (m > 1){ ax /= m; ay /= m; }
@@ -4584,7 +4734,7 @@ function hubUpdate(dt){
   if (HUB.moveTo){
     var prog = Math.abs(HUB.vx) + Math.abs(HUB.vy);
     HUB.stuck = prog < 40 ? (HUB.stuck || 0) + dt : 0;
-    if (HUB.stuck > 1.1){ HUB.moveTo = null; HUB.enterOn = null; HUB.stuck = 0; }
+    if (HUB.stuck > 1.1){ HUB.moveTo = null; HUB.path = null; HUB.enterOn = null; HUB.stuck = 0; }
   } else HUB.stuck = 0;
   var moving = Math.abs(HUB.vx) + Math.abs(HUB.vy) > 18;
   HUB.walk += moving ? dt*Math.min(12, 3 + (Math.abs(HUB.vx)+Math.abs(HUB.vy))*0.028) : 0;
@@ -4624,6 +4774,7 @@ function hubUpdate(dt){
   if (HUB.near !== was){ HUB.glow = 0; if (HUB.near) SFX.hover(); }
   HUB.glow = clamp(HUB.glow + (HUB.near ? dt*4 : -dt*6), 0, 1);
   if (HUB.enterOn && HUB.near === HUB.enterOn && !HUB.moveTo){
+    HUB.path = null;
     var go = HUB.enterOn; HUB.enterOn = null;
     hubUse(go);
     return;
@@ -5163,7 +5314,7 @@ function arcSaveBest(id, v){
 
 /* ---------- entering and leaving ---------- */
 function arcEnter(cat){
-  HUB.on = false; HUB.keys = {}; HUB.moveTo = null; HUB.enterOn = null;
+  HUB.on = false; HUB.keys = {}; HUB.moveTo = null; HUB.path = null; HUB.enterOn = null;
   document.getElementById('btn-hub').classList.remove('accent');
   ARC.on = true; ARC.pick = cat; ARC.id = null; ARC.g = null; ARC.def = null;
   ARC.btns = []; ARC.over = false;
