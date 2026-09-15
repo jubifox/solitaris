@@ -256,6 +256,7 @@
   <canvas id="stage" aria-label="Solitaris — solitaire"></canvas>
   <div class="ui">
     <div class="topbar">
+      <button class="glass" id="btn-hub">&#8962; Hub</button>
       <button class="glass" id="btn-shop">&#9670; Market</button>
       <button class="glass" id="btn-br">&#9876; Battle Royale</button>
       <button class="glass" id="btn-undo">&#8630; Undo</button>
@@ -4294,6 +4295,8 @@ function anyOverlayOpen(){
 }
 function resumeGame(){
   if (anyOverlayOpen()) return;
+  /* the hub is standing in for the table — do not hand input back to it */
+  if (HUB.on){ paused = true; interactive = false; return; }
   paused = false;
   if (!won && !dealing && mode === 'solo') interactive = true;
   if (mode === 'br' && BR.phase === 'run' && BR.you.alive && !won) interactive = true;
@@ -4315,6 +4318,552 @@ function toast(msg, kind){
   d.textContent = msg;
   box.appendChild(d);
   setTimeout(function(){ d.style.transition = 'opacity .4s'; d.style.opacity = '0'; setTimeout(function(){ if (d.parentNode) d.parentNode.removeChild(d); }, 420); }, 2400);
+}
+
+/* ============================================================================
+   HUB  —  a small plaza you walk across to reach each part of the game
+   ============================================================================ */
+var HUB = {
+  on:false,
+  W:2000, H:1400,
+  x:860, y:1120, vx:0, vy:0,
+  face:1, dir:'down', walk:0, speed:285,
+  camX:0, camY:0, camReady:false, zoom:1,
+  viewW:0, viewH:0,
+  near:null, glow:0,
+  moveTo:null,
+  keys:{}
+};
+/* Each place is a facade standing on its own bottom edge, with a doorway in
+   the middle of that edge and a trigger patch on the pavement in front. */
+var HUB_PLACES = [
+  { id:'table',   name:'Solitaire Hall', sub:'Deal a hand',       x:750,  y:250, w:500, h:260, wall:'#2b2450', trim:'#bfa5ff', roof:'#171334' },
+  { id:'arena',   name:'The Arena',      sub:'Battle royale',     x:210,  y:520, w:390, h:240, wall:'#3a1626', trim:'#ff3b6b', roof:'#220c17' },
+  { id:'market',  name:'The Market',     sub:'Skins and cases',   x:1400, y:520, w:400, h:240, wall:'#2e2a15', trim:'#f5c542', roof:'#19170c' },
+  { id:'vault',   name:'The Vault',      sub:'Open your crates',  x:1360, y:980, w:340, h:215, wall:'#152a33', trim:'#3ef0ff', roof:'#0b1820' },
+  { id:'records', name:'Hall of Records',sub:'Your run so far',   x:300,  y:980, w:340, h:215, wall:'#1d2a1e', trim:'#5dff9b', roof:'#101911' }
+];
+var HUB_LAMPS = [
+  {x:660,y:700},{x:1340,y:700},{x:660,y:1120},{x:1340,y:1120},
+  {x:1000,y:600},{x:1000,y:1240}
+];
+var HUB_TREES = [
+  {x:700,y:1010,r:1.0},{x:1300,y:1010,r:0.9},{x:230,y:1285,r:0.85},
+  {x:1780,y:1285,r:1.0},{x:820,y:1300,r:0.8},{x:1180,y:1300,r:0.9},
+  {x:180,y:820,r:0.75},{x:1830,y:900,r:0.8}
+];
+var HUB_MOTES = [];
+function hubInitMotes(){
+  HUB_MOTES.length = 0;
+  for (var i=0;i<48;i++) HUB_MOTES.push({ x:rnd(0,HUB.W), y:rnd(200,HUB.H), ph:rnd(0,6.283), sp:rnd(6,22), r:rnd(1,2.6) });
+}
+function hubDoor(p){ return { x:p.x + p.w/2, y:p.y + p.h }; }
+function hubEnter(){
+  if (HUB.on) return;
+  HUB.on = true;
+  HUB.camReady = false;
+  HUB.keys = {};
+  HUB.moveTo = null;
+  if (!HUB_MOTES.length) hubInitMotes();
+  paused = true; interactive = false;
+  breakCombo();
+  document.getElementById('btn-hub').classList.add('accent');
+  toast('Hub · walk to a building to enter it', 'good');
+  SFX.flip();
+}
+function hubLeave(){
+  if (!HUB.on) return;
+  HUB.on = false;
+  document.getElementById('btn-hub').classList.remove('accent');
+  resumeGame();
+}
+/* Walking into a doorway is what opens each destination. */
+function hubUse(place){
+  SFX.place();
+  spark(VW/2, VH*0.6, place.trim, 40, 260, {grav:200});
+  if (place.id === 'table'){ hubLeave(); if (mode !== 'solo') brExitToSolo(); return; }
+  if (place.id === 'arena'){ hubLeave(); openBR(); return; }
+  if (place.id === 'market'){ hubLeave(); openShop(); return; }
+  if (place.id === 'vault'){
+    hubLeave(); shopTab = 'cases';
+    Array.prototype.forEach.call(document.querySelectorAll('#shop-tabs .tab'), function(t){
+      t.classList.toggle('active', t.getAttribute('data-tab') === 'cases');
+    });
+    openShop(); return;
+  }
+  /* Hall of Records has nothing to open — its board is read where it stands */
+  toast(stats.wins + ' wins · ' + stats.brWins + ' crowns · best combo ×' + stats.bestCombo, 'gold');
+}
+function hubPointer(p){
+  /* click to walk: aim at the point under the cursor in world space */
+  HUB.moveTo = { x: p.x/HUB.zoom + HUB.camX, y: p.y/HUB.zoom + HUB.camY };
+}
+function hubSolid(px, py){
+  for (var i=0;i<HUB_PLACES.length;i++){
+    var b = HUB_PLACES[i];
+    if (px > b.x - 14 && px < b.x + b.w + 14 && py > b.y - 10 && py < b.y + b.h) return true;
+  }
+  for (var t=0;t<HUB_TREES.length;t++){
+    var tr = HUB_TREES[t], rr = 21*tr.r;
+    var dx = px - tr.x, dy = (py - tr.y)*1.7;
+    if (dx*dx + dy*dy < rr*rr) return true;
+  }
+  /* the fountain in the middle of the plaza */
+  var fx = px - 1000, fy = (py - 870)*1.6;
+  if (fx*fx + fy*fy < 96*96) return true;
+  return px < 110 || px > HUB.W - 110 || py < 190 || py > HUB.H - 80;
+}
+/* Which way do we have to step to get round whatever is in front of us?
+   Probes both sides at growing offsets and takes the first one that opens up;
+   for something symmetrical, like the fountain, it settles on one side. */
+function hubSlideDir(lateralX, dirSign){
+  for (var d=34; d<=150; d+=34){
+    var ahead = 52*dirSign;
+    var plus  = lateralX ? !hubSolid(HUB.x + d, HUB.y + ahead) : !hubSolid(HUB.x + ahead, HUB.y + d);
+    var minus = lateralX ? !hubSolid(HUB.x - d, HUB.y + ahead) : !hubSolid(HUB.x + ahead, HUB.y - d);
+    if (plus) return 1;
+    if (minus) return -1;
+  }
+  return 0;
+}
+function hubUpdate(dt){
+  if (!HUB.on) return;
+  var k = HUB.keys;
+  var ax = (k.right ? 1 : 0) - (k.left ? 1 : 0);
+  var ay = (k.down ? 1 : 0) - (k.up ? 1 : 0);
+  if (ax || ay) HUB.moveTo = null;
+  if (HUB.moveTo){
+    var dx = HUB.moveTo.x - HUB.x, dy = HUB.moveTo.y - HUB.y;
+    var d = Math.sqrt(dx*dx + dy*dy);
+    if (d < 8) HUB.moveTo = null;
+    else { ax = dx/d; ay = dy/d; }
+  }
+  var m = Math.sqrt(ax*ax + ay*ay);
+  if (m > 1){ ax /= m; ay /= m; }
+  var sp = HUB.speed;
+  HUB.vx += (ax*sp - HUB.vx) * Math.min(1, dt*14);
+  HUB.vy += (ay*sp - HUB.vy) * Math.min(1, dt*14);
+  /* resolve each axis on its own so a corner slides instead of sticking */
+  var nx = HUB.x + HUB.vx*dt;
+  var blockedX = hubSolid(nx, HUB.y);
+  if (!blockedX) HUB.x = nx; else HUB.vx = 0;
+  var ny = HUB.y + HUB.vy*dt;
+  var blockedY = hubSolid(HUB.x, ny);
+  if (!blockedY) HUB.y = ny; else HUB.vy = 0;
+  /* Walking straight at the fountain, or clicking through a building, would
+     otherwise leave you pressed flat against it. Look for the nearest way past
+     and lean that way — the same assist covers the keys and click-to-move. */
+  if ((blockedX || blockedY) && (ax || ay)){
+    if (blockedY && Math.abs(HUB.vx) < 50){
+      var sx2 = hubSlideDir(true, ay < 0 ? -1 : 1);
+      if (sx2) HUB.vx = sx2 * HUB.speed * 0.8;
+    }
+    if (blockedX && Math.abs(HUB.vy) < 50){
+      var sy2 = hubSlideDir(false, ax < 0 ? -1 : 1);
+      if (sy2) HUB.vy = sy2 * HUB.speed * 0.8;
+    }
+  }
+
+  /* Wall-following gets you round most things, but a click straight through a
+     building is a request we cannot honour — give up on it rather than grind
+     against the wall forever. */
+  if (HUB.moveTo){
+    var prog = Math.abs(HUB.vx) + Math.abs(HUB.vy);
+    HUB.stuck = prog < 40 ? (HUB.stuck || 0) + dt : 0;
+    if (HUB.stuck > 1.1){ HUB.moveTo = null; HUB.stuck = 0; }
+  } else HUB.stuck = 0;
+  var moving = Math.abs(HUB.vx) + Math.abs(HUB.vy) > 18;
+  HUB.walk += moving ? dt*Math.min(12, 3 + (Math.abs(HUB.vx)+Math.abs(HUB.vy))*0.028) : 0;
+  if (!moving) HUB.walk += dt*0.6;
+  if (Math.abs(HUB.vx) > 14) HUB.face = HUB.vx > 0 ? 1 : -1;
+  if (moving) HUB.dir = Math.abs(HUB.vy) > Math.abs(HUB.vx) ? (HUB.vy < 0 ? 'up' : 'down') : 'side';
+
+  /* footfall dust */
+  if (moving && Math.floor(HUB.walk/1.6) !== HUB._step){
+    HUB._step = Math.floor(HUB.walk/1.6);
+    var sx = (HUB.x - HUB.camX) * HUB.zoom, sy = (HUB.y - HUB.camY) * HUB.zoom;
+    if (sx > -40 && sx < VW+40) spark(sx, sy, '#8a93c4', 3, 50, {grav:120, life:0.4});
+  }
+
+  /* Zoom so a useful slice of the plaza is on screen whatever the window is;
+     the camera then trails the character and stops at the edges of the world. */
+  HUB.zoom = clamp(Math.min(VW/1560, VH/1020), 0.5, 1.15);
+  HUB.viewW = VW / HUB.zoom;
+  HUB.viewH = VH / HUB.zoom;
+  var tcx = clamp(HUB.x - HUB.viewW/2, Math.min(0, HUB.W - HUB.viewW)/2, Math.max(0, HUB.W - HUB.viewW));
+  var tcy = clamp(HUB.y - HUB.viewH*0.58, Math.min(0, HUB.H - HUB.viewH)/2, Math.max(0, HUB.H - HUB.viewH));
+  if (!HUB.camReady){ HUB.camX = tcx; HUB.camY = tcy; HUB.camReady = true; }
+  else {
+    HUB.camX += (tcx - HUB.camX) * Math.min(1, dt*5);
+    HUB.camY += (tcy - HUB.camY) * Math.min(1, dt*5);
+  }
+
+  /* which doorway are we standing in? */
+  var was = HUB.near;
+  HUB.near = null;
+  for (var i=0;i<HUB_PLACES.length;i++){
+    var b = HUB_PLACES[i], d2 = hubDoor(b);
+    if (Math.abs(HUB.x - d2.x) < 62 && HUB.y > d2.y - 6 && HUB.y < d2.y + 96){ HUB.near = b; break; }
+  }
+  if (HUB.near !== was){ HUB.glow = 0; if (HUB.near) SFX.hover(); }
+  HUB.glow = clamp(HUB.glow + (HUB.near ? dt*4 : -dt*6), 0, 1);
+
+  for (var mo=0;mo<HUB_MOTES.length;mo++){
+    var p = HUB_MOTES[mo];
+    p.y -= p.sp*dt; p.x += Math.sin(T*0.5 + p.ph)*10*dt;
+    if (p.y < 180){ p.y = HUB.H; p.x = rnd(0, HUB.W); }
+  }
+}
+
+/* ---------- drawing ---------- */
+/* The plaza never changes, so it is baked once at a fraction of world scale
+   and blitted. Two full-viewport gradient fills and a few hundred grid strokes
+   per frame was most of what dropped the effect tier when the hub opened. */
+var _hubGroundCv = null;
+var HUB_GROUND_SCALE = 0.6;
+function hubGroundSprite(){
+  if (_hubGroundCv) return _hubGroundCv;
+  var k = HUB_GROUND_SCALE;
+  var cv = document.createElement('canvas');
+  cv.width = Math.round(HUB.W*k); cv.height = Math.round(HUB.H*k);
+  var c = cv.getContext('2d');
+  c.setTransform(k,0,0,k,0,0);
+  var g = c.createLinearGradient(0, 150, 0, HUB.H);
+  cs(g,0,'#0d0a1c'); cs(g,0.5,'#120e24'); cs(g,1,'#080615');
+  c.fillStyle = g; c.fillRect(0, 0, HUB.W, HUB.H);
+  var pg = c.createRadialGradient(1000, 880, 40, 1000, 880, 760);
+  cs(pg,0,'rgba(90,110,190,0.16)'); cs(pg,1,'rgba(0,0,0,0)');
+  c.fillStyle = pg; c.fillRect(0, 0, HUB.W, HUB.H);
+  c.strokeStyle = 'rgba(124,150,255,0.09)'; c.lineWidth = 2/k;
+  c.beginPath();
+  for (var x=120;x<HUB.W-100;x+=80){ c.moveTo(x, 200); c.lineTo(x, HUB.H-80); }
+  for (var y=200;y<HUB.H-70;y+=80){ c.moveTo(120, y); c.lineTo(HUB.W-100, y); }
+  c.stroke();
+  c.strokeStyle = 'rgba(124,150,255,0.26)'; c.lineWidth = 6/k;
+  c.strokeRect(104, 184, HUB.W-208, HUB.H-264);
+  _hubGroundCv = cv;
+  return cv;
+}
+function hubGround(c){
+  var sp = hubGroundSprite(), k = HUB_GROUND_SCALE;
+  var vx = clamp(HUB.camX, 0, HUB.W), vy = clamp(HUB.camY, 0, HUB.H);
+  var vw = Math.min(HUB.viewW, HUB.W - vx), vh = Math.min(HUB.viewH, HUB.H - vy);
+  c.fillStyle = '#06040f';
+  c.fillRect(HUB.camX, HUB.camY, HUB.viewW, HUB.viewH);
+  if (vw > 0 && vh > 0) c.drawImage(sp, vx*k, vy*k, vw*k, vh*k, vx, vy, vw, vh);
+}
+/* One pool of lamplight, baked once and reused by every lamp. */
+var _hubPoolCv = null;
+function hubPoolSprite(){
+  if (_hubPoolCv) return _hubPoolCv;
+  var cv = document.createElement('canvas');
+  cv.width = 200; cv.height = 200;
+  var c = cv.getContext('2d');
+  var g = c.createRadialGradient(100,100,0,100,100,100);
+  cs(g,0,'rgba(255,200,120,0.17)'); cs(g,1,'rgba(255,190,90,0)');
+  c.fillStyle = g; c.fillRect(0,0,200,200);
+  _hubPoolCv = cv;
+  return cv;
+}
+/* Canopies, likewise: five radial gradients per tree per frame was forty. */
+var _hubTreeCv = {};
+function hubTreeSprite(r){
+  var key = Math.round(r*20);
+  if (_hubTreeCv[key]) return _hubTreeCv[key];
+  var s = r, W = Math.ceil(90*s), H = Math.ceil(80*s);
+  var cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  var c = cv.getContext('2d');
+  var ox = W/2, oy = H - 10*s;
+  var blobs = [[0,-58,34],[-24,-42,24],[24,-42,24],[-12,-74,20],[14,-72,22]];
+  for (var i=0;i<blobs.length;i++){
+    var bx = ox + blobs[i][0]*s, by = oy + blobs[i][1]*s, br = blobs[i][2]*s;
+    var bg = c.createRadialGradient(bx - 8*s, by - 8*s, 2, bx, by, br);
+    cs(bg,0,'#2f6b45'); cs(bg,1,'#163222');
+    c.fillStyle = bg;
+    c.beginPath(); c.arc(bx, by, br, 0, 6.283); c.fill();
+  }
+  _hubTreeCv[key] = { cv:cv, ox:ox, oy:oy };
+  return _hubTreeCv[key];
+}
+function hubFountain(c){
+  var cx = 1000, cy = 870;
+  c.save();
+  c.fillStyle = 'rgba(0,0,0,0.4)';
+  c.beginPath(); c.ellipse(cx, cy+16, 108, 44, 0, 0, 6.283); c.fill();
+  c.fillStyle = '#20203c';
+  c.beginPath(); c.ellipse(cx, cy, 104, 42, 0, 0, 6.283); c.fill();
+  var wg = c.createRadialGradient(cx, cy, 6, cx, cy, 88);
+  cs(wg,0,'rgba(120,200,255,0.55)'); cs(wg,1,'rgba(40,70,160,0.35)');
+  c.fillStyle = wg;
+  c.beginPath(); c.ellipse(cx, cy, 88, 34, 0, 0, 6.283); c.fill();
+  c.save();
+  c.beginPath(); c.ellipse(cx, cy, 88, 34, 0, 0, 6.283); c.clip();
+  c.strokeStyle = 'rgba(200,235,255,0.35)'; c.lineWidth = 2;
+  for (var i=0;i<4;i++){
+    var r = ((T*26 + i*22) % 88);
+    c.globalAlpha = clamp(1 - r/88, 0, 1)*0.7;
+    c.beginPath(); c.ellipse(cx, cy, r, r*0.38, 0, 0, 6.283); c.stroke();
+  }
+  c.restore();
+  /* the jet */
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (var j=0;j<14;j++){
+    var t2 = (j/14 + (T*0.6 % 1)) % 1;
+    var jy = cy - 8 - Math.sin(t2*3.14)*74;
+    var jx = cx + Math.cos(j*2.1 + T)*t2*30;
+    c.globalAlpha = (1-t2)*0.6;
+    c.fillStyle = '#9fd8ff';
+    c.beginPath(); c.arc(jx, jy, 3.4*(1-t2*0.5), 0, 6.283); c.fill();
+  }
+  c.restore();
+  c.restore();
+}
+function hubLamp(c, l){
+  c.save();
+  c.fillStyle = 'rgba(0,0,0,0.4)';
+  c.beginPath(); c.ellipse(l.x, l.y+4, 16, 6, 0, 0, 6.283); c.fill();
+  c.strokeStyle = '#3b4260'; c.lineWidth = 5; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(l.x, l.y); c.lineTo(l.x, l.y-72); c.stroke();
+  var flick = 0.85 + 0.15*Math.sin(T*7 + l.x);
+  c.save(); c.globalCompositeOperation = 'lighter';
+  var g = c.createRadialGradient(l.x, l.y-78, 0, l.x, l.y-78, 34);
+  cs(g,0,'rgba(255,214,140,' + (0.9*flick) + ')'); cs(g,1,'rgba(255,190,90,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(l.x, l.y-78, 34, 0, 6.283); c.fill();
+  c.restore();
+  c.fillStyle = '#ffdca0';
+  c.beginPath(); c.arc(l.x, l.y-78, 7, 0, 6.283); c.fill();
+  c.restore();
+}
+function hubLampPool(c, l){
+  c.save(); c.globalCompositeOperation = 'lighter';
+  c.drawImage(hubPoolSprite(), l.x - 170, l.y - 78, 340, 156);
+  c.restore();
+}
+function hubTree(c, t){
+  var s = t.r;
+  c.save();
+  c.fillStyle = 'rgba(0,0,0,0.42)';
+  c.beginPath(); c.ellipse(t.x, t.y+4, 30*s, 11*s, 0, 0, 6.283); c.fill();
+  c.strokeStyle = '#3a2c1e'; c.lineWidth = 8*s; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(t.x, t.y); c.lineTo(t.x, t.y-46*s); c.stroke();
+  var sway = Math.sin(T*0.7 + t.x*0.01)*4*s;
+  var sp = hubTreeSprite(s);
+  c.drawImage(sp.cv, t.x + sway - sp.ox, t.y - 20*s - sp.oy);
+  c.restore();
+}
+function hubBuilding(c, b){
+  var lit = (HUB.near === b) ? HUB.glow : 0;
+  var d = hubDoor(b);
+  c.save();
+  /* ground shadow */
+  c.fillStyle = 'rgba(0,0,0,0.45)';
+  c.beginPath(); c.ellipse(b.x + b.w/2, b.y + b.h + 6, b.w*0.54, 20, 0, 0, 6.283); c.fill();
+  /* wall */
+  var wg = c.createLinearGradient(b.x, b.y, b.x, b.y + b.h);
+  cs(wg,0,b.wall); cs(wg,1,'#0a0816');
+  c.fillStyle = wg; c.fillRect(b.x, b.y, b.w, b.h);
+  /* roof: a slab that overhangs, drawn as a trapezoid so it reads as a solid */
+  c.fillStyle = b.roof;
+  c.beginPath();
+  c.moveTo(b.x - 22, b.y); c.lineTo(b.x + b.w + 22, b.y);
+  c.lineTo(b.x + b.w - 34, b.y - 64); c.lineTo(b.x + 34, b.y - 64);
+  c.closePath(); c.fill();
+  c.strokeStyle = b.trim; c.globalAlpha = 0.5 + lit*0.5; c.lineWidth = 3; c.stroke();
+  c.globalAlpha = 1;
+  /* windows */
+  c.fillStyle = 'rgba(' + hexRgb(b.trim) + ',' + (0.18 + lit*0.28) + ')';
+  var cols = Math.max(2, Math.round(b.w/110));
+  for (var r=0;r<2;r++) for (var q=0;q<cols;q++){
+    var wx = b.x + 26 + q*((b.w-52)/cols), wy = b.y + 26 + r*68;
+    if (Math.abs(wx + 22 - d.x) < 58 && r === 1) continue;   /* leave room for the doorway */
+    c.fillRect(wx, wy, (b.w-52)/cols - 20, 42);
+  }
+  /* doorway */
+  var dh = 92, dw = 74;
+  c.fillStyle = '#05030c';
+  rrpath(c, d.x - dw/2, b.y + b.h - dh, dw, dh, 30); c.fill();
+  var dg = c.createLinearGradient(0, b.y + b.h - dh, 0, b.y + b.h);
+  cs(dg, 0, 'rgba(' + hexRgb(b.trim) + ',' + (0.30 + lit*0.6) + ')');
+  cs(dg, 1, 'rgba(' + hexRgb(b.trim) + ',0)');
+  c.fillStyle = dg;
+  rrpath(c, d.x - dw/2, b.y + b.h - dh, dw, dh, 30); c.fill();
+  c.strokeStyle = b.trim; c.globalAlpha = 0.55 + lit*0.45; c.lineWidth = 3;
+  rrpath(c, d.x - dw/2, b.y + b.h - dh, dw, dh, 30); c.stroke();
+  c.globalAlpha = 1;
+  /* light spilling onto the pavement */
+  c.save(); c.globalCompositeOperation = 'lighter';
+  var sg = c.createRadialGradient(d.x, b.y + b.h, 0, d.x, b.y + b.h, 130);
+  cs(sg, 0, 'rgba(' + hexRgb(b.trim) + ',' + (0.14 + lit*0.22) + ')');
+  cs(sg, 1, 'rgba(0,0,0,0)');
+  c.fillStyle = sg;
+  c.beginPath(); c.ellipse(d.x, b.y + b.h + 30, 130, 62, 0, 0, 6.283); c.fill();
+  c.restore();
+  /* sign */
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = b.trim;
+  c.shadowColor = b.trim; c.shadowBlur = 12 + lit*20;
+  c.font = '600 24px Cinzel, serif';
+  c.fillText(b.name, b.x + b.w/2, b.y - 30);
+  c.shadowBlur = 0;
+  c.fillStyle = 'rgba(200,212,240,0.65)';
+  c.font = '12px IBM Plex Mono, monospace';
+  c.fillText(b.sub.toUpperCase(), b.x + b.w/2, b.y - 10);
+  c.restore();
+  if (b.id === 'records') hubRecordsBoard(c, b);
+  if (b.id === 'vault' && pendingCases > 0) hubVaultBadge(c, b);
+}
+function hubRecordsBoard(c, b){
+  var bx = b.x + 22, by = b.y + b.h + 34;
+  c.save();
+  c.fillStyle = 'rgba(6,10,7,0.82)';
+  rrpath(c, bx, by, b.w - 44, 84, 6); c.fill();
+  c.strokeStyle = 'rgba(93,255,155,0.45)'; c.lineWidth = 2;
+  rrpath(c, bx, by, b.w - 44, 84, 6); c.stroke();
+  c.fillStyle = '#8fffb9'; c.font = '13px IBM Plex Mono, monospace';
+  c.textAlign = 'left'; c.textBaseline = 'top';
+  var lines = [
+    'WINS          ' + stats.wins,
+    'CROWNS        ' + stats.brWins,
+    'BEST COMBO    x' + stats.bestCombo,
+    'CASES OPENED  ' + stats.opened
+  ];
+  for (var i=0;i<lines.length;i++) c.fillText(lines[i], bx + 14, by + 10 + i*18);
+  c.restore();
+}
+function hubVaultBadge(c, b){
+  var bx = b.x + b.w - 18, by = b.y - 54;
+  c.save();
+  var pulse = 0.7 + 0.3*Math.sin(T*3);
+  c.fillStyle = 'rgba(62,240,255,' + pulse + ')';
+  c.beginPath(); c.arc(bx, by, 18, 0, 6.283); c.fill();
+  c.fillStyle = '#04121a'; c.font = '600 18px Oswald, sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(String(pendingCases), bx, by + 1);
+  c.restore();
+}
+/* A hooded figure, about forty pixels tall, drawn from parts so it can walk. */
+function hubAvatar(c, x, y){
+  var step = Math.sin(HUB.walk);
+  /* Wall-following gets you round most things, but a click straight through a
+     building is a request we cannot honour — give up on it rather than grind
+     against the wall forever. */
+  if (HUB.moveTo){
+    var prog = Math.abs(HUB.vx) + Math.abs(HUB.vy);
+    HUB.stuck = prog < 40 ? (HUB.stuck || 0) + dt : 0;
+    if (HUB.stuck > 1.1){ HUB.moveTo = null; HUB.stuck = 0; }
+  } else HUB.stuck = 0;
+  var moving = Math.abs(HUB.vx) + Math.abs(HUB.vy) > 18;
+  var bob = moving ? Math.abs(Math.sin(HUB.walk*2))*2.4 : Math.sin(HUB.walk*1.2)*1.2;
+  c.save();
+  c.fillStyle = 'rgba(0,0,0,0.45)';
+  c.beginPath(); c.ellipse(x, y+2, 15, 6, 0, 0, 6.283); c.fill();
+  c.translate(x, y - bob);
+  if (HUB.dir === 'side') c.scale(HUB.face, 1);
+  /* legs */
+  c.strokeStyle = '#2b2748'; c.lineWidth = 6; c.lineCap = 'round';
+  var sw = moving ? step*7 : 0;
+  c.beginPath(); c.moveTo(-4, -16); c.lineTo(-4 + sw, -1); c.stroke();
+  c.beginPath(); c.moveTo(4, -16); c.lineTo(4 - sw, -1); c.stroke();
+  /* cloak */
+  var cg = c.createLinearGradient(0, -44, 0, -10);
+  cs(cg, 0, '#6a57c8'); cs(cg, 1, '#2b2450');
+  c.fillStyle = cg;
+  c.beginPath();
+  c.moveTo(0, -46);
+  c.quadraticCurveTo(15, -40, 13 + (moving ? -step*2 : 0), -10);
+  c.lineTo(-13 + (moving ? -step*2 : 0), -10);
+  c.quadraticCurveTo(-15, -40, 0, -46);
+  c.closePath(); c.fill();
+  c.strokeStyle = 'rgba(191,165,255,0.6)'; c.lineWidth = 1.6; c.stroke();
+  /* hood and head */
+  c.fillStyle = '#7c67dd';
+  c.beginPath(); c.arc(0, -48, 11, 0, 6.283); c.fill();
+  c.fillStyle = '#1a1533';
+  c.beginPath(); c.arc(0, -47, 8.4, 0, 6.283); c.fill();
+  if (HUB.dir !== 'up'){
+    c.fillStyle = '#cfe0ff';
+    c.beginPath(); c.arc(HUB.dir === 'side' ? 2.6 : -3, -47, 1.7, 0, 6.283); c.fill();
+    if (HUB.dir !== 'side'){ c.beginPath(); c.arc(3, -47, 1.7, 0, 6.283); c.fill(); }
+  }
+  /* the shard they carry, which is where the glow comes from */
+  var hx = HUB.dir === 'side' ? 13 : 12, hy = -26 + (moving ? step*2 : 0);
+  c.save(); c.globalCompositeOperation = 'lighter';
+  var hg = c.createRadialGradient(hx, hy, 0, hx, hy, 26);
+  cs(hg, 0, 'rgba(160,210,255,0.55)'); cs(hg, 1, 'rgba(120,180,255,0)');
+  c.fillStyle = hg; c.beginPath(); c.arc(hx, hy, 26, 0, 6.283); c.fill();
+  c.restore();
+  c.fillStyle = '#bfe4ff';
+  c.save(); c.translate(hx, hy); c.rotate(T*1.4);
+  starPath(c, 0, 0, 2.2, 5.6, 4); c.fill();
+  c.restore();
+  c.restore();
+}
+function hubVisible(x, y, pad){
+  pad = pad || 0;
+  return x > HUB.camX - pad && x < HUB.camX + HUB.viewW + pad &&
+         y > HUB.camY - pad && y < HUB.camY + HUB.viewH + pad;
+}
+function hubDraw(c){
+  if (!HUB.viewW){ HUB.viewW = VW; HUB.viewH = VH; }
+  c.save();
+  c.fillStyle = '#05030d'; c.fillRect(0, 0, VW, VH);
+  c.scale(HUB.zoom, HUB.zoom);
+  c.translate(-HUB.camX, -HUB.camY);
+  hubGround(c);
+  for (var l=0;l<HUB_LAMPS.length;l++) if (hubVisible(HUB_LAMPS[l].x, HUB_LAMPS[l].y, 220)) hubLampPool(c, HUB_LAMPS[l]);
+  /* everything that stands on the ground is painted back to front */
+  var list = [];
+  for (var b=0;b<HUB_PLACES.length;b++){
+    var pb = HUB_PLACES[b];
+    if (hubVisible(pb.x + pb.w/2, pb.y + pb.h/2, Math.max(pb.w, pb.h)))
+      list.push({ y:pb.y + pb.h, fn:hubBuilding, a:pb });
+  }
+  for (var t=0;t<HUB_TREES.length;t++) if (hubVisible(HUB_TREES[t].x, HUB_TREES[t].y, 130)) list.push({ y:HUB_TREES[t].y, fn:hubTree, a:HUB_TREES[t] });
+  for (var m=0;m<HUB_LAMPS.length;m++) if (hubVisible(HUB_LAMPS[m].x, HUB_LAMPS[m].y, 130)) list.push({ y:HUB_LAMPS[m].y, fn:hubLamp, a:HUB_LAMPS[m] });
+  if (hubVisible(1000, 870, 200)) list.push({ y:912, fn:function(cc){ hubFountain(cc); }, a:null });
+  list.push({ y:HUB.y, fn:function(cc){ hubAvatar(cc, HUB.x, HUB.y); }, a:null });
+  list.sort(function(p,q){ return p.y - q.y; });
+  for (var i=0;i<list.length;i++) list[i].fn(c, list[i].a);
+  /* motes */
+  c.save(); c.globalCompositeOperation = 'lighter';
+  c.fillStyle = '#bfa5ff';
+  for (var mo=0;mo<HUB_MOTES.length;mo++){
+    var p = HUB_MOTES[mo];
+    if (!hubVisible(p.x, p.y, 20)) continue;
+    c.globalAlpha = 0.18 + 0.22*Math.abs(Math.sin(T*1.2 + p.ph));
+    c.beginPath(); c.arc(p.x, p.y, p.r, 0, 6.283); c.fill();
+  }
+  c.restore();
+  c.restore();
+  hubHud(c);
+}
+function hubHud(c){
+  c.save();
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  if (HUB.near && HUB.glow > 0.02){
+    var b = HUB.near, d = hubDoor(b);
+    var sx = (d.x - HUB.camX) * HUB.zoom, sy = (d.y - HUB.camY) * HUB.zoom;
+    c.globalAlpha = HUB.glow;
+    var lab = 'Enter ' + b.name;
+    c.font = '600 15px Oswald, sans-serif';
+    var wdt = c.measureText(lab).width + 46;
+    c.fillStyle = 'rgba(8,6,18,0.86)';
+    rrpath(c, sx - wdt/2, sy + 34, wdt, 34, 4); c.fill();
+    c.strokeStyle = b.trim; c.lineWidth = 1.6;
+    rrpath(c, sx - wdt/2, sy + 34, wdt, 34, 4); c.stroke();
+    c.fillStyle = b.trim;
+    c.fillText(lab, sx, sy + 52);
+    c.globalAlpha = 1;
+  }
+  c.globalAlpha = 0.6;
+  c.font = '11px IBM Plex Mono, monospace';
+  c.fillStyle = '#8a93c4';
+  c.fillText(VW < 720
+    ? 'Arrows or tap to walk  ·  Esc to leave'
+    : 'WASD / arrows to walk  ·  click to move  ·  walk into a doorway  ·  Esc to leave',
+    VW/2, VH - 26);
+  c.restore();
 }
 
 /* ============================================================================
@@ -4476,6 +5025,7 @@ function update(dt){
 
   updateParticles(gdt);
   updateTexts(gdt);
+  hubUpdate(dt);
   updateCrate(dt);
   updateReel(dt);
   updateMulti();
@@ -4755,6 +5305,15 @@ function buildScanPattern(){
 function render(){
   /* scene offscreen */
   sctx.setTransform(DPR,0,0,DPR,0,0);
+  if (HUB.on){
+    /* the hub replaces the table, but still goes through the same bloom,
+       shake and grade so it looks like part of the same game */
+    hubDraw(sctx);
+    drawParticles(sctx);
+    drawTexts(sctx);
+    renderPost();
+    return;
+  }
   /* A table that never moves is drawn once and then left alone — no point
      re-running a marble-vein routine sixty times a second for a still image. */
   if (bgDirty || (!bgStatic && nowMs >= bgNextRefresh)){
@@ -4774,7 +5333,9 @@ function render(){
   drawParticles(sctx);
   drawTexts(sctx);
   drawWorldHUD(sctx);
-
+  renderPost();
+}
+function renderPost(){
   /* to screen */
   ctx.setTransform(DPR,0,0,DPR,0,0);
   ctx.fillStyle = '#05030d'; ctx.fillRect(0,0,VW,VH);
@@ -4865,6 +5426,7 @@ window.addEventListener('resize', resize);
    ============================================================================ */
 canvas.addEventListener('pointerdown', function(e){
   if (e.pointerType === 'touch') cur.isTouch = true;
+  if (HUB.on){ hubPointer(evtPos(e)); return; }
   onDown(e);
   try { canvas.setPointerCapture(e.pointerId); } catch(err){}
 });
@@ -4875,7 +5437,27 @@ canvas.addEventListener('pointercancel', function(){
   cur.down = false;
 });
 
+var HUB_KEYS = {
+  arrowleft:'left', a:'left', q:'left',
+  arrowright:'right', d:'right',
+  arrowup:'up', w:'up', z:'up',
+  arrowdown:'down', s:'down'
+};
+window.addEventListener('keyup', function(e){
+  var hk = HUB_KEYS[e.key.toLowerCase()];
+  if (hk) HUB.keys[hk] = false;
+});
+window.addEventListener('blur', function(){ HUB.keys = {}; });
 window.addEventListener('keydown', function(e){
+  var k0 = e.key.toLowerCase();
+  if (HUB.on && !anyOverlayOpen()){
+    var hk = HUB_KEYS[k0];
+    if (hk){ e.preventDefault(); HUB.keys[hk] = true; return; }
+    if (k0 === 'escape' || k0 === 'h'){ hubLeave(); return; }
+    if ((k0 === 'enter' || k0 === ' ' || k0 === 'e') && HUB.near){ e.preventDefault(); hubUse(HUB.near); return; }
+    if (k0 === 'm'){ toggleSound(); }
+    return;
+  }
   var k = e.key.toLowerCase();
   if (anyOverlayOpen()){
     if (k === 'escape'){
@@ -4891,13 +5473,18 @@ window.addEventListener('keydown', function(e){
   else if (k === 'n'){ if (mode === 'solo') newGame(); }
   else if (k === 'a'){ var el = document.getElementById('autowrap'); if (el && el.classList.contains('show')) startAuto(); }
   else if (k === 'm'){ toggleSound(); }
+  else if (k === 'h'){ hubEnter(); }
 });
 
-document.getElementById('btn-undo').addEventListener('click', undo);
-document.getElementById('btn-new').addEventListener('click', function(){ audioInit(); ac(); if (mode === 'solo') newGame(); else brExitToSolo(); });
-document.getElementById('btn-auto').addEventListener('click', function(){ audioInit(); ac(); startAuto(); });
-document.getElementById('btn-again').addEventListener('click', function(){ audioInit(); ac(); newGame(); });
+document.getElementById('btn-undo').addEventListener('click', function(){ hubLeave(); undo(); });
+document.getElementById('btn-new').addEventListener('click', function(){ audioInit(); ac(); hubLeave(); if (mode === 'solo') newGame(); else brExitToSolo(); });
+document.getElementById('btn-auto').addEventListener('click', function(){ audioInit(); ac(); hubLeave(); startAuto(); });
+document.getElementById('btn-again').addEventListener('click', function(){ audioInit(); ac(); hubLeave(); newGame(); });
 document.getElementById('btn-shop').addEventListener('click', function(){ audioInit(); ac(); openShop(); });
+document.getElementById('btn-hub').addEventListener('click', function(){
+  audioInit(); ac();
+  if (HUB.on) hubLeave(); else hubEnter();
+});
 document.getElementById('btn-br').addEventListener('click', function(){ audioInit(); ac(); openBR(); });
 
 document.getElementById('shop-close').addEventListener('click', closeShop);

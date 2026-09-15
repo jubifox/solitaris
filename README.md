@@ -18,6 +18,7 @@ One HTML file. No build step, no dependencies, no server — open it and play.
 | New deal | `N` |
 | Auto-resolve | `A`, once every tableau card is face up |
 | Mute | `M` |
+| Open the hub | `H` |
 
 Build the tableau down in alternating colours, foundations up by suit.
 Standard Klondike rules, draw one, unlimited redeals.
@@ -45,6 +46,13 @@ rarity glowing behind each tile, ticks pitched to the strip's speed and a
 damped rock-back onto the marker. Multi-opens flip a grid of tiles one at a
 time. Either way the pull is shown turning under a rarity beam. Duplicates
 convert to shards automatically.
+
+**Hub.** A plaza you walk a character around — arrows or WASD, or click where
+you want to go — with a doorway for each part of the game: Solitaire Hall back
+to the table, The Arena for battle royale, The Market for skins, The Vault for
+your unopened crates, and a Hall of Records with your run carved on a board out
+front. Walk into a doorway and press `Enter` to go in. `H` opens it, `Esc`
+leaves.
 
 **Battle royale.** You plus seven AI climbers on the same seeded deal. The
 lowest score is cut every 20 seconds until one is left. Placement pays out in
