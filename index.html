@@ -4326,7 +4326,9 @@ function toast(msg, kind){
 var HUB = {
   on:false,
   W:2000, H:1400,
-  x:840, y:900, vx:0, vy:0,
+  /* You land facing Solitaire Hall, a short clear walk from its doorway, with
+     the rest of the plaza behind you. */
+  x:1000, y:760, vx:0, vy:0,
   face:1, dir:'down', walk:0, speed:285,
   camX:0, camY:0, camReady:false, zoom:1,
   viewW:0, viewH:0,
@@ -4751,14 +4753,6 @@ function hubVaultBadge(c, b){
 /* A hooded figure, about forty pixels tall, drawn from parts so it can walk. */
 function hubAvatar(c, x, y){
   var step = Math.sin(HUB.walk);
-  /* Wall-following gets you round most things, but a click straight through a
-     building is a request we cannot honour — give up on it rather than grind
-     against the wall forever. */
-  if (HUB.moveTo){
-    var prog = Math.abs(HUB.vx) + Math.abs(HUB.vy);
-    HUB.stuck = prog < 40 ? (HUB.stuck || 0) + dt : 0;
-    if (HUB.stuck > 1.1){ HUB.moveTo = null; HUB.stuck = 0; }
-  } else HUB.stuck = 0;
   var moving = Math.abs(HUB.vx) + Math.abs(HUB.vy) > 18;
   var bob = moving ? Math.abs(Math.sin(HUB.walk*2))*2.4 : Math.sin(HUB.walk*1.2)*1.2;
   c.save();
@@ -4884,6 +4878,8 @@ var bgCost = 6;
    instead of a slideshow, which is what made the busy tables look choppy. */
 var bgPrevC = document.createElement('canvas');
 var bgPrevX = bgPrevC.getContext('2d');
+var bgMixC = document.createElement('canvas');
+var bgMixX = bgMixC.getContext('2d');
 var bgFade = 1, bgFadeDur = 0, bgFadeLast = 0, bgHasPrev = false, bgStatic = false;
 function bgIsAnimated(){
   var mat = CATALOG[equip.mat] || CATALOG[MAT_DEFAULT];
@@ -4919,12 +4915,22 @@ function refreshBG(){
   bgFade = wantFade ? 0 : 1;
 }
 function drawBG(c){
-  if (bgFade >= 1 || !bgPrevC.width){ c.drawImage(bgC, 0, 0, VW, VH); return; }
-  c.drawImage(bgPrevC, 0, 0, VW, VH);
-  c.save();
-  c.globalAlpha = bgFade;
-  c.drawImage(bgC, 0, 0, VW, VH);
-  c.restore();
+  var bw = bgC.width, bh = bgC.height;
+  if (bgFade >= 1 || bgPrevC.width !== bw || bgPrevC.height !== bh){
+    c.drawImage(bgC, 0, 0, VW, VH); return;
+  }
+  /* Blend the outgoing and incoming table frames at the buffer's own (half)
+     resolution and put up one full-screen blit. Stretching both across the
+     screen instead cost a second full-screen blit on every frame, which is
+     about a tenth of the frame budget — this path is entirely fill-rate bound. */
+  if (bgMixC.width !== bw) bgMixC.width = bw;
+  if (bgMixC.height !== bh) bgMixC.height = bh;
+  bgMixX.globalAlpha = 1;
+  bgMixX.drawImage(bgPrevC, 0, 0);
+  bgMixX.globalAlpha = bgFade;
+  bgMixX.drawImage(bgC, 0, 0);
+  bgMixX.globalAlpha = 1;
+  c.drawImage(bgMixC, 0, 0, VW, VH);
 }
 function initBokeh(){
   bokeh = [];
@@ -4961,6 +4967,14 @@ function update(dt){
   var gdt = dt * timeScale;
   timeScale += (targetScale - timeScale) * Math.min(1, dt*6);
 
+  if (dealing && paused){
+    /* The deal is on hold — in the hub, or behind an overlay. Its arrival times
+       are absolute, so without this every card would land in the same frame the
+       moment play resumes, in one burst of fifty-two deal sounds. */
+    var held = dt*1000;
+    for (var d=0;d<cards.length;d++) if (cards[d].state === 'deck') cards[d].arrival += held;
+    dealDoneAt += held;
+  }
   if (dealing && !paused){
     for (var i=0;i<cards.length;i++){
       var c = cards[i];
@@ -5326,8 +5340,19 @@ function render(){
     refreshBG();
     /* Keep the table redraw well under a frame budget, whatever it costs; the
        crossfade below covers the gap, so a cheap table can also refresh fast. */
-    bgFadeDur = clamp(bgCost * 8, perfTier <= 0 ? 260 : 40, 420);
-    bgNextRefresh = nowMs + bgFadeDur;
+    /* bgCost only sees the time spent issuing the draw calls, not rasterising
+       them, so it cannot pace this on its own. Drive the table off the frame
+       rate we are actually achieving: a machine with room to spare redraws it
+       at 30Hz, one that is struggling backs off to roughly where it was before
+       the crossfade existed — and the crossfade still covers the gap, so even
+       then it reads as motion rather than a slideshow. */
+    var bgEvery = clamp(bgCost * 14, perfTier <= 0 ? 260 : 33, 420);
+    if (fpsSmooth < 50) bgEvery = Math.max(bgEvery, 60);
+    if (fpsSmooth < 32) bgEvery = Math.max(bgEvery, 110);
+    /* finish the dissolve a little before the next redraw, so the frames in
+       between take the single-blit path above */
+    bgFadeDur = bgEvery * 0.7;
+    bgNextRefresh = nowMs + bgEvery;
   }
   if (bgFade < 1 && bgFadeDur > 0) bgFade = clamp(bgFade + (nowMs - bgFadeLast) / bgFadeDur, 0, 1);
   bgFadeLast = nowMs;
@@ -5545,6 +5570,9 @@ regenAllSprites();
 refreshWalletUI();
 updatePendingBadge();
 newGame();
+/* The table is dealt and waiting, but you start out in the hub and walk into
+   Solitaire Hall to sit down at it. */
+hubEnter();
 requestAnimationFrame(frame);
 
 })();
