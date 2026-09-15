@@ -4326,7 +4326,7 @@ function toast(msg, kind){
 var HUB = {
   on:false,
   W:2000, H:1400,
-  x:860, y:1120, vx:0, vy:0,
+  x:840, y:900, vx:0, vy:0,
   face:1, dir:'down', walk:0, speed:285,
   camX:0, camY:0, camReady:false, zoom:1,
   viewW:0, viewH:0,
@@ -4503,7 +4503,9 @@ function hubUpdate(dt){
   HUB.near = null;
   for (var i=0;i<HUB_PLACES.length;i++){
     var b = HUB_PLACES[i], d2 = hubDoor(b);
-    if (Math.abs(HUB.x - d2.x) < 62 && HUB.y > d2.y - 6 && HUB.y < d2.y + 96){ HUB.near = b; break; }
+    /* the patch is about twice the width of the doorway, so drifting a little
+       wide of it still counts as standing in it */
+    if (Math.abs(HUB.x - d2.x) < 78 && HUB.y > d2.y - 10 && HUB.y < d2.y + 104){ HUB.near = b; break; }
   }
   if (HUB.near !== was){ HUB.glow = 0; if (HUB.near) SFX.hover(); }
   HUB.glow = clamp(HUB.glow + (HUB.near ? dt*4 : -dt*6), 0, 1);
@@ -4714,12 +4716,16 @@ function hubBuilding(c, b){
   if (b.id === 'vault' && pendingCases > 0) hubVaultBadge(c, b);
 }
 function hubRecordsBoard(c, b){
-  var bx = b.x + 22, by = b.y + b.h + 34;
+  /* beside the building rather than on the pavement in front of it, where the
+     doorway prompt appears */
+  var bw = 188, bx = b.x + b.w + 18, by = b.y + b.h - 120;
   c.save();
-  c.fillStyle = 'rgba(6,10,7,0.82)';
-  rrpath(c, bx, by, b.w - 44, 84, 6); c.fill();
+  c.strokeStyle = 'rgba(93,255,155,0.35)'; c.lineWidth = 5; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(bx + bw/2, by + 84); c.lineTo(bx + bw/2, by + 118); c.stroke();
+  c.fillStyle = 'rgba(6,10,7,0.88)';
+  rrpath(c, bx, by, bw, 84, 6); c.fill();
   c.strokeStyle = 'rgba(93,255,155,0.45)'; c.lineWidth = 2;
-  rrpath(c, bx, by, b.w - 44, 84, 6); c.stroke();
+  rrpath(c, bx, by, bw, 84, 6); c.stroke();
   c.fillStyle = '#8fffb9'; c.font = '13px IBM Plex Mono, monospace';
   c.textAlign = 'left'; c.textBaseline = 'top';
   var lines = [
@@ -4728,7 +4734,7 @@ function hubRecordsBoard(c, b){
     'BEST COMBO    x' + stats.bestCombo,
     'CASES OPENED  ' + stats.opened
   ];
-  for (var i=0;i<lines.length;i++) c.fillText(lines[i], bx + 14, by + 10 + i*18);
+  for (var i=0;i<lines.length;i++) c.fillText(lines[i], bx + 13, by + 10 + i*18);
   c.restore();
 }
 function hubVaultBadge(c, b){
