@@ -3,7 +3,7 @@
 **[▶ Jouer maintenant](https://jubifox.github.io/solitaris/)**
 
 A single-file Klondike solitaire, deliberately over-juiced: every move blooms,
-shakes and rains shards. Ships with a 70-piece skin economy, case opening and
+shakes and rains shards. Ships with a 95-piece skin economy, case opening and
 an 8-player battle royale against AI climbers.
 
 One HTML file. No build step, no dependencies, no server — open it and play.
@@ -31,14 +31,20 @@ full card cascade on the win. A combo multiplier (up to ×15) escalates every
 chained scoring move.
 
 **Economy.** Two currencies: shards earned by playing, and premium gems.
-**70 cosmetics** across three slots — 25 card faces, 24 sleeves, 21 tables —
-in five rarity tiers. Thirty-one are animated (fire, water, frost, lightning,
-petals, a cyclone eye, an accretion disc…), rendered as pre-baked 30-frame
-sprite loops so they cost one blit per card at runtime.
+**95 cosmetics** across three slots — 34 card faces, 32 sleeves, 29 tables —
+in five rarity tiers. Forty-three are animated (fire, water, frost, lightning,
+petals, a cyclone eye, an accretion disc, clockwork gears, aurora curtains…),
+rendered as pre-baked 30-frame sprite loops so they cost one blit per card at
+runtime.
 
-**Cases.** Two crates with published odds, openable ×1, ×5 or ×10. Single
-opens run a CS:GO-style carousel; multi-opens flip a grid of tiles one at a
-time. Duplicates convert to shards automatically.
+**Cases.** Two crates with published odds, openable ×1, ×5 or ×10. Every open
+starts with the crate itself — a shaded box turning on its axis, winding up
+through three latch clacks before the lid flies off. Single opens then run a
+64-tile carousel whose fillers are rolled from that crate's own odds, with
+rarity glowing behind each tile, ticks pitched to the strip's speed and a
+damped rock-back onto the marker. Multi-opens flip a grid of tiles one at a
+time. Either way the pull is shown turning under a rarity beam. Duplicates
+convert to shards automatically.
 
 **Battle royale.** You plus seven AI climbers on the same seeded deal. The
 lowest score is cut every 20 seconds until one is left. Placement pays out in
@@ -54,6 +60,11 @@ to sprites once per skin change instead of being redrawn per frame, the table
 background is drawn at half resolution and refreshed on an interval derived
 from its own measured cost, and bloom recomputes at 60 Hz even when the game
 runs at 120.
+
+Because the table is refreshed on an interval rather than per frame, it is
+double-buffered and crossfaded between refreshes, so an animated table reads as
+a continuous pan instead of a slideshow. Tables that do not animate are drawn
+once and left alone.
 
 The frame time is sampled continuously and the effect tier steps itself down
 (Max → Calm → Potato) if the machine can't keep up, adjusting particle caps,

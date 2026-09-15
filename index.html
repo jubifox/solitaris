@@ -267,7 +267,7 @@
       <div class="autowrap" id="autowrap"><button class="hero blue" id="btn-auto">&#10022; Auto-Resolve &#10022;</button></div>
       <div class="winwrap" id="winwrap"><button class="hero" id="btn-again">Deal Again</button></div>
     </div>
-    <p class="hint" id="hint">Drag to build down in alternating colours &middot; tap a card to fling it home &middot; click the deck to draw &middot; 43 skins in the Market</p>
+    <p class="hint" id="hint">Drag to build down in alternating colours &middot; tap a card to fling it home &middot; click the deck to draw &middot; 95 cosmetics in the Market</p>
   </div>
 
   <div class="toasts" id="toasts"></div>
@@ -1548,6 +1548,322 @@ var CATALOG = {
       c.restore();
     } },
 
+  /* ---- nouvelles faces ---- */
+  card_linen:{ type:'card', name:'Linen Press', rarity:'common', price:{shards:420}, animated:false,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#f6f2e9','#e2dccd',function(s){ return isRed(s)?'#bb1026':'#1a1c22'; },'rgba(70,72,80,0.30)');
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalAlpha = 0.16; c.strokeStyle = 'rgba(90,86,74,0.8)'; c.lineWidth = 1;
+      var st = Math.max(3, w*0.035);
+      for (var x=-w/2;x<w/2;x+=st){ c.beginPath(); c.moveTo(x,-h/2); c.lineTo(x,h/2); c.stroke(); }
+      for (var y=-h/2;y<h/2;y+=st){ c.beginPath(); c.moveTo(-w/2,y); c.lineTo(w/2,y); c.stroke(); }
+      c.restore();
+    } },
+  card_cobalt:{ type:'card', name:'Cobalt Vellum', rarity:'common', price:{shards:460}, animated:false,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#e7eef6','#cad8e8',function(s){ return isRed(s)?'#c01230':'#12325e'; },'rgba(30,70,130,0.42)');
+      c.save(); c.strokeStyle = 'rgba(18,50,94,0.35)'; c.lineWidth = Math.max(1,w*0.012);
+      rrpath(c,-w/2+w*0.10,-h/2+w*0.10,w-w*0.20,h-w*0.20,w*0.04); c.stroke(); c.restore();
+    } },
+  card_copper:{ type:'card', name:'Copper Etch', rarity:'rare', price:{shards:720}, animated:false,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#2a1a12','#180e09',function(s){ return isRed(s)?'#ff6a3a':'#f4e3c6'; },'rgba(214,138,72,0.45)');
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalAlpha = 0.20; c.strokeStyle = '#d68a48'; c.lineWidth = 1;
+      for (var i=-12;i<12;i++){
+        c.beginPath(); c.moveTo(-w/2, i*h*0.06); c.lineTo(w/2, i*h*0.06 + h*0.10); c.stroke();
+      }
+      c.restore();
+    } },
+  card_jade:{ type:'card', name:'Jade Seal', rarity:'rare', price:{shards:780}, animated:false,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#0e3129','#06201a',function(s){ return isRed(s)?'#ff6f7d':'#b8f0d4'; },'rgba(120,224,180,0.4)');
+      c.save(); c.globalAlpha = 0.5;
+      c.strokeStyle = 'rgba(160,240,205,0.5)'; c.lineWidth = Math.max(1,w*0.014);
+      var m = w*0.10, k = w*0.14;
+      c.beginPath();
+      c.moveTo(-w/2+m, -h/2+m+k); c.lineTo(-w/2+m, -h/2+m); c.lineTo(-w/2+m+k, -h/2+m);
+      c.moveTo(w/2-m-k, h/2-m); c.lineTo(w/2-m, h/2-m); c.lineTo(w/2-m, h/2-m-k);
+      c.stroke(); c.restore();
+    } },
+  card_glass:{ type:'card', name:'Smoked Glass', rarity:'epic', price:{shards:2300}, animated:true,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#1a1d24','#0d1014',function(s){ return isRed(s)?'#ff7b93':'#cfe6ff'; },'rgba(190,215,245,0.35)');
+    },
+    frame:function(c,w,h,ph){
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalCompositeOperation='lighter';
+      var x = -w*1.2 + ph*w*2.6;
+      var g = c.createLinearGradient(x,-h/2,x+w*0.5,h/2);
+      cs(g,0,'rgba(255,255,255,0)'); cs(g,0.5,'rgba(220,240,255,0.22)'); cs(g,1,'rgba(255,255,255,0)');
+      c.fillStyle = g; c.fillRect(-w/2,-h/2,w,h);
+      c.restore();
+    } },
+  card_aurora:{ type:'card', name:'Aurora Veil', rarity:'epic', price:{shards:2700}, animated:true,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#0b1430','#05091c',function(s){ return isRed(s)?'#ff7aa8':'#8effd0'; },'rgba(120,255,208,0.32)');
+    },
+    frame:function(c,w,h,ph){
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalCompositeOperation='lighter';
+      for (var b=0;b<7;b++){
+        var x = -w/2 + b*w*0.15 + Math.sin(ph*6.283 + b*0.7)*w*0.05;
+        var top = -h/2 + h*0.06, bot = h*(0.02 + 0.16*Math.sin(ph*6.283 + b*0.5));
+        var g = c.createLinearGradient(x,top,x,bot);
+        cs(g,0,'rgba(120,255,200,0)');
+        cs(g,0.5,'rgba(' + (b%2 ? '120,255,200' : '140,180,255') + ',0.20)');
+        cs(g,1,'rgba(120,255,200,0)');
+        c.fillStyle = g; c.fillRect(x, top, w*0.10, bot-top);
+      }
+      c.restore();
+    } },
+  card_clockwork:{ type:'card', name:'Clockwork', rarity:'legendary', price:{shards:5400}, animated:true,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#2b2113','#160f08',function(s){ return isRed(s)?'#ff8a3c':'#ffe9bc'; },'rgba(228,178,90,0.5)');
+    },
+    frame:function(c,w,h,ph){
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalAlpha = 0.34; c.strokeStyle = '#e4b25a'; c.lineWidth = Math.max(1,w*0.015);
+      var gears = [[-w*0.26,-h*0.30,w*0.17,1],[w*0.28,h*0.28,w*0.13,-1],[w*0.05,-h*0.02,w*0.10,1]];
+      for (var g2=0;g2<gears.length;g2++){
+        var gx = gears[g2][0], gy = gears[g2][1], gr = gears[g2][2], dir = gears[g2][3];
+        c.save(); c.translate(gx,gy); c.rotate(ph*6.283*dir*(0.4 + g2*0.25));
+        c.beginPath(); c.arc(0,0,gr*0.55,0,6.283); c.stroke();
+        for (var k=0;k<9;k++){
+          var a = k/9*6.283;
+          c.beginPath();
+          c.moveTo(Math.cos(a)*gr*0.6, Math.sin(a)*gr*0.6);
+          c.lineTo(Math.cos(a)*gr, Math.sin(a)*gr); c.stroke();
+        }
+        c.restore();
+      }
+      c.restore();
+    } },
+  card_tidepool:{ type:'card', name:'Tidepool', rarity:'legendary', price:{gems:62}, animated:true,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#06282e','#03161b',function(s){ return isRed(s)?'#ff7d8f':'#9ef0ff'; },'rgba(120,225,240,0.38)');
+    },
+    frame:function(c,w,h,ph){
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalCompositeOperation='lighter';
+      c.strokeStyle = 'rgba(160,250,255,0.24)'; c.lineWidth = Math.max(1,w*0.012);
+      for (var i=0;i<5;i++){
+        c.beginPath();
+        for (var x=-w/2;x<=w/2;x+=w*0.08){
+          var y = -h/2 + h*(0.12 + i*0.19) + Math.sin(x*0.06 + ph*6.283 + i)*h*0.035;
+          if (x === -w/2) c.moveTo(x,y); else c.lineTo(x,y);
+        }
+        c.stroke();
+      }
+      c.restore();
+    } },
+  card_starlit:{ type:'card', name:'Starlit Atlas', rarity:'mythic', price:{gems:155}, animated:true,
+    face:function(c,card,w,h){
+      facePaper(c,card,w,h,'#0d0b26','#050414',function(s){ return isRed(s)?'#ff86b4':'#cfe0ff'; },'rgba(160,180,255,0.4)');
+    },
+    frame:function(c,w,h,ph){
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalCompositeOperation='lighter';
+      /* une constellation qui scintille et se retrace */
+      var pts = [[-0.30,-0.34],[-0.08,-0.20],[0.10,-0.32],[0.26,-0.06],[0.06,0.14],[-0.18,0.08],[-0.02,0.34],[0.24,0.30]];
+      c.strokeStyle = 'rgba(180,205,255,0.30)'; c.lineWidth = Math.max(1,w*0.010);
+      c.beginPath();
+      for (var i=0;i<pts.length;i++){
+        var px = pts[i][0]*w, py = pts[i][1]*h;
+        if (i===0) c.moveTo(px,py); else c.lineTo(px,py);
+      }
+      c.stroke();
+      for (var j=0;j<pts.length;j++){
+        var tw = 0.4 + 0.6*Math.abs(Math.sin(ph*6.283 + j*0.8));
+        c.fillStyle = 'rgba(235,242,255,' + tw + ')';
+        c.beginPath(); c.arc(pts[j][0]*w, pts[j][1]*h, w*0.018*tw, 0, 6.283); c.fill();
+      }
+      c.restore();
+    } },
+
+  /* ---- nouveaux dos ---- */
+  sleeve_toile:{ type:'sleeve', name:'Toile Ecrue', rarity:'common', price:{shards:300}, animated:false,
+    back:function(c,w,h){
+      var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#ded3bb'); cs(g,1,'#b9a98a');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.strokeStyle = 'rgba(120,104,74,0.28)'; c.lineWidth = Math.max(1,w*0.02);
+      var st = Math.max(6, w*0.07);
+      for (var x=-w/2;x<w/2;x+=st){ c.beginPath(); c.moveTo(x,-h/2); c.lineTo(x,h/2); c.stroke(); }
+      c.strokeStyle = 'rgba(255,248,230,0.22)';
+      for (var y=-h/2;y<h/2;y+=st){ c.beginPath(); c.moveTo(-w/2,y); c.lineTo(w/2,y); c.stroke(); }
+      c.restore();
+      c.strokeStyle = 'rgba(90,76,50,0.45)'; c.lineWidth = Math.max(1,w*0.016);
+      rrpath(c,-w/2+w*0.06,-h/2+w*0.06,w-w*0.12,h-w*0.12,w*0.05); c.stroke();
+    } },
+  sleeve_maze:{ type:'sleeve', name:'Labyrinthe', rarity:'common', price:{shards:340}, animated:false,
+    back:function(c,w,h){
+      c.fillStyle = '#16233a'; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.strokeStyle = 'rgba(126,180,255,0.42)'; c.lineWidth = Math.max(1.2,w*0.022);
+      var st = Math.max(9, w*0.13);
+      c.beginPath();
+      for (var y=-h/2;y<h/2+st;y+=st){
+        for (var x=-w/2;x<w/2+st;x+=st){
+          var flip = ((Math.round((x+1000)/st) * 7 + Math.round((y+1000)/st) * 13) % 2) === 0;
+          if (flip){ c.moveTo(x,y+st); c.lineTo(x+st,y); }
+          else { c.moveTo(x,y); c.lineTo(x+st,y+st); }
+        }
+      }
+      c.stroke();
+      c.restore();
+    } },
+  sleeve_compas:{ type:'sleeve', name:'Rose des Vents', rarity:'rare', price:{shards:640}, animated:false,
+    back:function(c,w,h){
+      var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#123047'); cs(g,1,'#061622');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.strokeStyle = 'rgba(220,196,130,0.5)'; c.lineWidth = Math.max(1,w*0.013);
+      for (var r=w*0.14;r<w*0.52;r+=w*0.13){ c.beginPath(); c.arc(0,0,r,0,6.283); c.stroke(); }
+      for (var i=0;i<8;i++){
+        var a = i/8*6.283, len = (i%2 ? w*0.30 : w*0.50);
+        c.fillStyle = i%2 ? 'rgba(220,196,130,0.5)' : 'rgba(245,225,170,0.85)';
+        c.beginPath();
+        c.moveTo(Math.cos(a)*len, Math.sin(a)*len);
+        c.lineTo(Math.cos(a+0.30)*w*0.09, Math.sin(a+0.30)*w*0.09);
+        c.lineTo(Math.cos(a-0.30)*w*0.09, Math.sin(a-0.30)*w*0.09);
+        c.closePath(); c.fill();
+      }
+      c.restore();
+    } },
+  sleeve_koi:{ type:'sleeve', name:'Koi', rarity:'rare', price:{shards:700}, animated:false,
+    back:function(c,w,h){
+      var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#12444a'); cs(g,1,'#05191e');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.strokeStyle = 'rgba(190,240,240,0.14)'; c.lineWidth = Math.max(1,w*0.016);
+      for (var r=w*0.1;r<w*1.3;r+=w*0.14){ c.beginPath(); c.arc(-w*0.1,h*0.2,r,0,6.283); c.stroke(); }
+      var fish = [[-w*0.12,-h*0.16,1,'#ff7a4a'],[w*0.14,h*0.12,-1,'#f7f1e4']];
+      for (var i=0;i<fish.length;i++){
+        c.save(); c.translate(fish[i][0], fish[i][1]); c.scale(fish[i][2], 1);
+        c.fillStyle = fish[i][3];
+        c.beginPath();
+        c.moveTo(-w*0.16, 0);
+        c.quadraticCurveTo(0, -w*0.13, w*0.15, -w*0.02);
+        c.quadraticCurveTo(0, w*0.11, -w*0.16, 0);
+        c.closePath(); c.fill();
+        c.beginPath();
+        c.moveTo(-w*0.14,0); c.lineTo(-w*0.24,-w*0.09); c.lineTo(-w*0.22,0); c.lineTo(-w*0.24,w*0.09);
+        c.closePath(); c.fill();
+        c.restore();
+      }
+      c.restore();
+    } },
+  sleeve_vitrail:{ type:'sleeve', name:'Vitrail', rarity:'epic', price:{shards:2200}, animated:true,
+    back:function(c,w,h){
+      c.fillStyle = '#12101c'; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      var cols = ['#c8324f','#2f6fc0','#d8a12a','#2f9d6a','#7b3fb0'];
+      var st = Math.max(10, w*0.19);
+      var n = 0;
+      /* la cellule entiere est coloree puis recoupee par un losange d'une
+         autre teinte : plus de verre que de plomb, comme un vrai vitrail */
+      for (var y=-h/2;y<h/2+st;y+=st) for (var x=-w/2;x<w/2+st;x+=st){
+        c.fillStyle = cols[(n++)%cols.length];
+        c.fillRect(x,y,st,st);
+        c.fillStyle = cols[(n+2)%cols.length];
+        c.beginPath();
+        c.moveTo(x+st*0.5,y); c.lineTo(x+st,y+st*0.5); c.lineTo(x+st*0.5,y+st); c.lineTo(x,y+st*0.5);
+        c.closePath(); c.fill();
+      }
+      c.strokeStyle = 'rgba(10,8,14,0.85)'; c.lineWidth = Math.max(1.4,w*0.022);
+      for (var y2=-h/2;y2<h/2+st;y2+=st){ c.beginPath(); c.moveTo(-w/2,y2); c.lineTo(w/2,y2); c.stroke(); }
+      for (var x2=-w/2;x2<w/2+st;x2+=st){ c.beginPath(); c.moveTo(x2,-h/2); c.lineTo(x2,h/2); c.stroke(); }
+      c.restore();
+    },
+    frame:function(c,w,h,ph){
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalCompositeOperation='lighter';
+      var x = -w*1.1 + ph*w*2.4;
+      var g = c.createLinearGradient(x,-h/2,x+w*0.6,h/2);
+      cs(g,0,'rgba(255,240,200,0)'); cs(g,0.5,'rgba(255,240,200,0.26)'); cs(g,1,'rgba(255,240,200,0)');
+      c.fillStyle = g; c.fillRect(-w/2,-h/2,w,h);
+      c.restore();
+    } },
+  sleeve_meteore:{ type:'sleeve', name:'Meteore', rarity:'epic', price:{shards:2600}, animated:true,
+    back:function(c,w,h){
+      var g = c.createRadialGradient(0,h*0.2,0,0,h*0.2,w*0.9);
+      cs(g,0,'#1c1636'); cs(g,1,'#05040e');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.fillStyle = 'rgba(210,225,255,0.55)';
+      for (var i=0;i<26;i++) c.fillRect(-w/2 + ((i*97.3)%1)*w, -h/2 + ((i*41.7)%1)*h, 1.4, 1.4);
+      c.restore();
+    },
+    frame:function(c,w,h,ph){
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalCompositeOperation='lighter';
+      for (var m=0;m<4;m++){
+        var t = ((m*0.27 + ph)%1);
+        var mx = -w*0.6 + t*w*1.6, my = -h*0.6 + t*h*1.5;
+        var g = c.createLinearGradient(mx,my,mx-w*0.28,my-h*0.2);
+        cs(g,0,'rgba(255,240,215,0.9)'); cs(g,1,'rgba(160,190,255,0)');
+        c.strokeStyle = g; c.lineWidth = Math.max(1.3,w*0.022);
+        c.beginPath(); c.moveTo(mx,my); c.lineTo(mx-w*0.28,my-h*0.2); c.stroke();
+      }
+      c.restore();
+    } },
+  sleeve_phenix:{ type:'sleeve', name:'Phenix', rarity:'legendary', price:{gems:60}, animated:true,
+    back:function(c,w,h){
+      var g = c.createLinearGradient(-w/2,-h/2,w/2,h/2); cs(g,0,'#3a0f06'); cs(g,1,'#120402');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.strokeStyle = 'rgba(255,160,60,0.55)'; c.lineWidth = Math.max(1.3,w*0.020);
+      /* silhouette d'oiseau, ailes deployees */
+      c.beginPath();
+      c.moveTo(0,h*0.24);
+      c.quadraticCurveTo(-w*0.10,0,-w*0.34,-h*0.16);
+      c.quadraticCurveTo(-w*0.14,-h*0.10,-w*0.06,-h*0.22);
+      c.moveTo(0,h*0.24);
+      c.quadraticCurveTo(w*0.10,0,w*0.34,-h*0.16);
+      c.quadraticCurveTo(w*0.14,-h*0.10,w*0.06,-h*0.22);
+      c.moveTo(0,h*0.24); c.lineTo(0,-h*0.26);
+      c.stroke();
+      c.restore();
+    },
+    frame:function(c,w,h,ph){
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalCompositeOperation='lighter';
+      for (var i=0;i<12;i++){
+        var t = ((i*0.083 + ph*1.2)%1);
+        var fx = -w/2 + ((i*0.317)%1)*w + Math.sin(ph*6.283+i)*w*0.05;
+        var fy = h/2 - t*h*1.1;
+        c.globalAlpha = clamp(1-t,0,1)*0.8;
+        c.fillStyle = i%3 ? '#ff8a32' : '#ffd77a';
+        c.beginPath(); c.ellipse(fx, fy, w*0.02, w*0.045, Math.sin(ph*6.283+i)*0.6, 0, 6.283); c.fill();
+      }
+      c.restore();
+    } },
+  sleeve_quantum:{ type:'sleeve', name:'Quantique', rarity:'mythic', price:{gems:148}, animated:true,
+    back:function(c,w,h){
+      var g = c.createRadialGradient(0,0,0,0,0,w*0.8); cs(g,0,'#16203a'); cs(g,1,'#04060e');
+      c.fillStyle = g; rrpath(c,-w/2,-h/2,w,h,w*0.09); c.fill();
+      c.strokeStyle = 'rgba(120,200,255,0.30)'; c.lineWidth = Math.max(1,w*0.014);
+      c.beginPath(); c.arc(0,0,w*0.13,0,6.283); c.stroke();
+    },
+    frame:function(c,w,h,ph){
+      c.save(); rrpath(c,-w/2,-h/2,w,h,w*0.09); c.clip();
+      c.globalCompositeOperation='lighter';
+      /* trois orbitales inclinees, une particule sur chacune */
+      for (var i=0;i<3;i++){
+        var a = i*2.094 + ph*0.6;
+        c.save(); c.rotate(a);
+        c.strokeStyle = 'rgba(' + (i===0?'120,220,255':(i===1?'190,140,255':'120,255,200')) + ',0.5)';
+        c.lineWidth = Math.max(1,w*0.013);
+        c.beginPath(); c.ellipse(0,0,w*0.36,w*0.14,0,0,6.283); c.stroke();
+        var pa = ph*6.283*(1.4 + i*0.35);
+        c.fillStyle = '#ffffff';
+        c.beginPath(); c.arc(Math.cos(pa)*w*0.36, Math.sin(pa)*w*0.14, w*0.028, 0, 6.283); c.fill();
+        c.restore();
+      }
+      c.restore();
+    } },
+
   /* ---- MATS (tables) ---- */
   mat_deepspace:{ type:'mat', name:'Deep Space', rarity:'common', price:null, animated:true, bg:matDeepspace },
   mat_midnight:{ type:'mat', name:'Midnight Weave', rarity:'common', price:{shards:400}, animated:true, bg:matMidnight },
@@ -1570,7 +1886,16 @@ var CATALOG = {
   mat_cuir:{ type:'mat', name:'Cuir Cognac', rarity:'rare', price:{shards:820}, animated:false, bg:matCuir },
   mat_marbre:{ type:'mat', name:'Marbre Veine', rarity:'rare', price:{shards:900}, animated:false, bg:matMarbre },
   mat_velours:{ type:'mat', name:'Velours Royal', rarity:'epic', price:{shards:2200}, animated:false, bg:matVelours },
-  mat_aurum:{ type:'mat', name:"Damas d'Or", rarity:'mythic', price:{gems:130}, animated:true, bg:matAurum }
+  mat_aurum:{ type:'mat', name:"Damas d'Or", rarity:'mythic', price:{gems:130}, animated:true, bg:matAurum },
+  /* ---- nouveaux tapis ---- */
+  mat_zen:{ type:'mat', name:'Jardin Zen', rarity:'common', price:{shards:360}, animated:false, bg:matZen },
+  mat_brume:{ type:'mat', name:'Brume', rarity:'common', price:{shards:420}, animated:true, bg:matBrume },
+  mat_azulejo:{ type:'mat', name:'Azulejo', rarity:'rare', price:{shards:780}, animated:false, bg:matAzulejo },
+  mat_lagoon:{ type:'mat', name:'Lagon', rarity:'rare', price:{shards:920}, animated:true, bg:matLagoon },
+  mat_canopee:{ type:'mat', name:'Canopee', rarity:'epic', price:{shards:2500}, animated:true, bg:matCanopee },
+  mat_aurore:{ type:'mat', name:'Aurore Boreale', rarity:'epic', price:{gems:28}, animated:true, bg:matAurore },
+  mat_nebula:{ type:'mat', name:'Pouponniere Stellaire', rarity:'legendary', price:{shards:5400}, animated:true, bg:matNebula },
+  mat_prisme:{ type:'mat', name:'Prisme', rarity:'mythic', price:{gems:150}, animated:true, bg:matPrisme }
 };
 var CARD_DEFAULT = 'card_classic', SLEEVE_DEFAULT = 'sleeve_arcane', MAT_DEFAULT = 'mat_deepspace';
 (function(){ for (var k in CATALOG) CATALOG[k].id = k; })();
@@ -1702,7 +2027,20 @@ var ITEM_ART = {
   mat_bordeaux:['orb','#7e1f33'],      mat_sable:['wave','#d9b483'],
   mat_chene:['grid','#8a5a2b'],        mat_cuir:['rune','#a35c2c'],
   mat_marbre:['prism','#b9c2cd'],      mat_velours:['crown','#6a2ea8'],
-  mat_aurum:['crown','#d8a83c']
+  mat_aurum:['crown','#d8a83c'],
+  card_linen:['grid','#1a1c22'],       card_cobalt:['hex','#12325e'],
+  card_copper:['spiral','#ff6a3a'],    card_jade:['leaf','#b8f0d4'],
+  card_glass:['prism','#cfe6ff'],      card_aurora:['wave','#8effd0'],
+  card_clockwork:['orb','#e4b25a'],    card_tidepool:['wave','#9ef0ff'],
+  card_starlit:['star','#cfe0ff'],
+  sleeve_toile:['grid','#b9a98a'],     sleeve_maze:['grid','#7eb4ff'],
+  sleeve_compas:['star','#f5e1aa'],    sleeve_koi:['wave','#ff7a4a'],
+  sleeve_vitrail:['prism','#d8a12a'],  sleeve_meteore:['star','#d2e1ff'],
+  sleeve_phenix:['flame','#ffa03c'],   sleeve_quantum:['orb','#78c8ff'],
+  mat_zen:['leaf','#a68f68'],          mat_brume:['wave','#96afd2'],
+  mat_azulejo:['hex','#2f5f9e'],       mat_lagoon:['wave','#96f5e6'],
+  mat_canopee:['leaf','#d2ffaa'],      mat_aurore:['wave','#5affb4'],
+  mat_nebula:['orb','#ff5a96'],        mat_prisme:['prism','#e6ebff']
 };
 var MOTIF_KEYS = Object.keys(MOTIFS);
 function artOf(id){
@@ -2212,6 +2550,213 @@ function matAurum(c,W,H,t){
 /* ============================================================================
    SPRITE CACHE
    ============================================================================ */
+/* ---------- nouveaux tapis ---------- */
+function matZen(c,W,H,t){
+  matBase(c,W,H,'#d9c9a4','#c7b189','#a68f68');
+  /* sable ratisse autour de deux pierres */
+  c.save();
+  c.strokeStyle = 'rgba(120,98,66,0.30)'; c.lineWidth = Math.max(1, W/700);
+  var cx1 = W*0.30, cy1 = H*0.58, cx2 = W*0.74, cy2 = H*0.34;
+  c.beginPath();
+  for (var r=W*0.05;r<W*0.42;r+=Math.max(8,W*0.028)){ c.moveTo(cx1+r,cy1); c.arc(cx1,cy1,r,0,6.283); }
+  for (var r2=W*0.04;r2<W*0.30;r2+=Math.max(8,W*0.028)){ c.moveTo(cx2+r2,cy2); c.arc(cx2,cy2,r2,0,6.283); }
+  c.stroke();
+  c.restore();
+  var st = [[cx1,cy1,W*0.035],[cx2,cy2,W*0.026],[W*0.52,H*0.80,W*0.02]];
+  for (var i=0;i<st.length;i++){
+    var g = c.createRadialGradient(st[i][0]-st[i][2]*0.4, st[i][1]-st[i][2]*0.5, 0, st[i][0], st[i][1], st[i][2]);
+    cs(g,0,'#6f6a63'); cs(g,1,'#3a3733');
+    c.fillStyle = g;
+    c.beginPath(); c.ellipse(st[i][0], st[i][1], st[i][2], st[i][2]*0.78, 0.3, 0, 6.283); c.fill();
+  }
+  matNoise(c,W,H,0.10,4);
+  matVignette(c,W,H,0.62);
+}
+function matBrume(c,W,H,t){
+  matBase(c,W,H,'#23324a','#1a2538','#0a0f18');
+  /* une lueur basse qui fait office d'horizon derriere le brouillard */
+  var hz = c.createLinearGradient(0,H*0.30,0,H);
+  cs(hz,0,'rgba(120,150,195,0.20)'); cs(hz,1,'rgba(0,0,0,0)');
+  c.fillStyle = hz; c.fillRect(0,0,W,H);
+  c.save(); c.globalCompositeOperation='lighter';
+  for (var i=0;i<7;i++){
+    var px = ((i*0.17 + t*(0.014 + i*0.005)) % 1.5 - 0.25) * W;
+    var py = H*(0.20 + (i%4)*0.22) + Math.sin(t*0.3 + i)*H*0.05;
+    var g = c.createRadialGradient(px,py,0,px,py,W*(0.24 + (i%3)*0.13));
+    cs(g,0,'rgba(175,200,235,0.20)'); cs(g,1,'rgba(0,0,0,0)');
+    c.fillStyle = g; c.fillRect(0,0,W,H);
+  }
+  c.restore();
+  matVignette(c,W,H,0.66);
+}
+function matAzulejo(c,W,H,t){
+  matBase(c,W,H,'#e8eef2','#dbe4ec','#c3d0dc');
+  var step = Math.max(46, W/9);
+  /* le motif ne bouge pas : on le cuit une fois et on le repete */
+  var tile = matSprite('azulejo-tile', step, step, function(g,S){
+    g.fillStyle = '#eef3f7'; g.fillRect(0,0,S,S);
+    /* losange central, petales dans les coins, filet au bord */
+    g.fillStyle = 'rgba(47,95,158,0.80)';
+    g.beginPath();
+    g.moveTo(S/2,S*0.16); g.quadraticCurveTo(S*0.62,S*0.38,S*0.84,S/2);
+    g.quadraticCurveTo(S*0.62,S*0.62,S/2,S*0.84);
+    g.quadraticCurveTo(S*0.38,S*0.62,S*0.16,S/2);
+    g.quadraticCurveTo(S*0.38,S*0.38,S/2,S*0.16);
+    g.closePath(); g.fill();
+    g.fillStyle = '#eef3f7';
+    g.beginPath(); g.arc(S/2,S/2,S*0.13,0,6.283); g.fill();
+    g.fillStyle = 'rgba(29,66,114,0.75)';
+    for (var q=0;q<4;q++){
+      var cxq = (q&1)?S:0, cyq = (q&2)?S:0;
+      g.beginPath(); g.arc(cxq,cyq,S*0.16,0,6.283); g.fill();
+    }
+    g.strokeStyle = 'rgba(29,66,114,0.55)'; g.lineWidth = Math.max(1,S*0.035);
+    g.strokeRect(S*0.02,S*0.02,S*0.96,S*0.96);
+  });
+  var pat = c.createPattern(tile,'repeat');
+  if (pat){ c.save(); c.globalAlpha = 0.95; c.fillStyle = pat; c.fillRect(0,0,W,H); c.restore(); }
+  matVignette(c,W,H,0.55);
+}
+function matLagoon(c,W,H,t){
+  matBase(c,W,H,'#0d4f5e','#0a3a49','#04202b');
+  c.save(); c.globalCompositeOperation='lighter';
+  /* caustiques : un filet de courbes ondulees dans les deux sens, dont les
+     croisements forment les mailles lumineuses du fond d'un lagon */
+  var seg = Math.max(10, W/44);
+  for (var pass=0;pass<2;pass++){
+    var horiz = (pass === 0);
+    var span = horiz ? H : W, across = horiz ? W : H;
+    var n = 11;
+    c.lineWidth = Math.max(1.2, W/(330 + pass*90));
+    c.strokeStyle = 'rgba(170,250,238,' + (0.17 - pass*0.05) + ')';
+    for (var i=0;i<n;i++){
+      var base = span*(i + 0.5)/n;
+      c.beginPath();
+      for (var u=0;u<=across;u+=seg){
+        var off = Math.sin(u*0.018 + t*(0.8 + pass*0.5) + i*1.3)*span*0.030
+                + Math.sin(u*0.007 - t*(0.5 + pass*0.3) + i*0.6)*span*0.045;
+        var v = base + off;
+        if (u === 0) { horiz ? c.moveTo(u,v) : c.moveTo(v,u); }
+        else { horiz ? c.lineTo(u,v) : c.lineTo(v,u); }
+      }
+      c.stroke();
+    }
+  }
+  c.restore();
+  var sun = c.createRadialGradient(W*0.5,-H*0.15,0,W*0.5,-H*0.15,H*0.95);
+  cs(sun,0,'rgba(190,255,245,0.20)'); cs(sun,1,'rgba(0,0,0,0)');
+  c.fillStyle = sun; c.fillRect(0,0,W,H);
+  matVignette(c,W,H,0.6);
+}
+function matCanopee(c,W,H,t){
+  matBase(c,W,H,'#12301c','#0c2416','#05120b');
+  c.save(); c.globalCompositeOperation='lighter';
+  /* rais de lumiere descendants */
+  for (var i=0;i<6;i++){
+    var bx = W*(0.08 + i*0.17) + Math.sin(t*0.25 + i)*W*0.02;
+    var g = c.createLinearGradient(bx,0,bx + W*0.14,H);
+    cs(g,0,'rgba(210,255,170,' + (0.10 + 0.05*Math.sin(t*0.6+i)) + ')');
+    cs(g,1,'rgba(210,255,170,0)');
+    c.fillStyle = g;
+    c.beginPath(); c.moveTo(bx - W*0.03,0); c.lineTo(bx + W*0.05,0);
+    c.lineTo(bx + W*0.20,H); c.lineTo(bx + W*0.06,H); c.closePath(); c.fill();
+  }
+  c.restore();
+  /* feuillage en ombre chinoise sur le haut */
+  c.save();
+  for (var l=0;l<70;l++){
+    var lx = ((l*97.7)%1)*W, ly = ((l*41.3)%1)*H*0.30 - H*0.03;
+    var rr = W*(0.016 + ((l*17.1)%1)*0.026);
+    /* les feuilles basses sont plus claires : ca donne de la profondeur */
+    var depth = clamp(ly/(H*0.30), 0, 1);
+    c.fillStyle = 'rgba(' + Math.round(6+depth*26) + ',' + Math.round(20+depth*44) + ',' + Math.round(11+depth*22) + ',0.9)';
+    c.save(); c.translate(lx, ly); c.rotate(((l*31.7)%1)*3.14);
+    c.beginPath(); c.ellipse(0, 0, rr, rr*0.44, 0, 0, 6.283); c.fill();
+    c.restore();
+  }
+  c.restore();
+  /* poussieres qui montent dans les rais */
+  c.save(); c.globalCompositeOperation='lighter'; c.fillStyle='#d8ffb0';
+  for (var d=0;d<24;d++){
+    var dx = ((d*57.3)%1)*W + Math.sin(t*0.5+d)*W*0.01;
+    var dy = H - (((d*0.041) + t*0.035)%1)*H;
+    c.globalAlpha = 0.35*(1 - dy/H);
+    c.fillRect(dx, dy, 2, 2);
+  }
+  c.restore();
+  matVignette(c,W,H,0.68);
+}
+function matAurore(c,W,H,t){
+  matBase(c,W,H,'#040a18','#030712','#01030a');
+  matStars(c,W,H*0.8,t,64,true);
+  c.save(); c.globalCompositeOperation='lighter';
+  /* rideaux : des bandes verticales dont la base ondule */
+  var cols = ['rgba(90,255,180,', 'rgba(110,190,255,', 'rgba(190,120,255,'];
+  for (var i=0;i<3;i++){
+    for (var b=0;b<9;b++){
+      var x = W*(0.08 + i*0.30) + b*W*0.026 + Math.sin(t*0.5 + b*0.4 + i*2)*W*0.035;
+      var top = H*(0.06 + 0.04*Math.sin(t*0.4 + b));
+      var bot = H*(0.44 + 0.16*Math.sin(t*0.7 + b*0.5 + i));
+      var g = c.createLinearGradient(x,top,x,bot);
+      cs(g,0,cols[i] + '0)'); cs(g,0.45,cols[i] + (0.16 + 0.07*Math.sin(t+b)) + ')'); cs(g,1,cols[i] + '0)');
+      c.fillStyle = g; c.fillRect(x, top, W*0.024, bot-top);
+    }
+  }
+  c.restore();
+  matVignette(c,W,H,0.64);
+}
+function matNebula(c,W,H,t){
+  matBase(c,W,H,'#0a0614','#070410','#030109');
+  matAurora(c,W,H,t,[
+    {x:0.32,y:0.36,r:0.52,col:'rgba(255,90,150,0.15)',sp:0.05},
+    {x:0.68,y:0.30,r:0.46,col:'rgba(90,150,255,0.14)',sp:0.07},
+    {x:0.50,y:0.74,r:0.60,col:'rgba(180,110,255,0.11)',sp:0.04},
+    {x:0.14,y:0.72,r:0.36,col:'rgba(70,230,210,0.10)',sp:0.09}
+  ]);
+  matStars(c,W,H,t,110,true);
+  /* quelques etoiles brillantes avec une croix de diffraction */
+  c.save(); c.globalCompositeOperation='lighter';
+  for (var i=0;i<5;i++){
+    var sx = ((i*211.7)%1)*W, sy = ((i*97.3)%1)*H;
+    var pulse = 0.55 + 0.45*Math.sin(t*1.1 + i*1.7);
+    var r = W*0.012*pulse;
+    c.strokeStyle = 'rgba(230,240,255,' + (0.5*pulse) + ')';
+    c.lineWidth = Math.max(1, W/900);
+    c.beginPath();
+    c.moveTo(sx-r*4,sy); c.lineTo(sx+r*4,sy);
+    c.moveTo(sx,sy-r*4); c.lineTo(sx,sy+r*4); c.stroke();
+    c.fillStyle = 'rgba(255,255,255,' + (0.8*pulse) + ')';
+    c.beginPath(); c.arc(sx,sy,r,0,6.283); c.fill();
+  }
+  c.restore();
+  matVignette(c,W,H,0.66);
+}
+function matPrisme(c,W,H,t){
+  matBase(c,W,H,'#08060f','#06040c','#020106');
+  var cx = W*0.5, cy = H*0.46;
+  c.save(); c.globalCompositeOperation='lighter';
+  /* eventail spectral qui tourne */
+  var hues = ['#ff3b6b','#ffb03c','#5dff9b','#3ef0ff','#7c5bff','#ff3bd0'];
+  for (var i=0;i<hues.length;i++){
+    var a0 = t*0.22 + i/hues.length*6.283;
+    var g = c.createLinearGradient(cx,cy, cx+Math.cos(a0)*W*0.7, cy+Math.sin(a0)*W*0.7);
+    cs(g,0,'rgba(' + hexRgb(hues[i]) + ',0.20)'); cs(g,1,'rgba(' + hexRgb(hues[i]) + ',0)');
+    c.fillStyle = g;
+    c.beginPath(); c.moveTo(cx,cy); c.arc(cx,cy,Math.max(W,H),a0,a0+0.52); c.closePath(); c.fill();
+  }
+  c.restore();
+  /* le prisme lui-meme */
+  c.save();
+  c.translate(cx,cy); c.rotate(Math.sin(t*0.3)*0.12);
+  var pg = c.createLinearGradient(0,-H*0.16,0,H*0.13);
+  cs(pg,0,'rgba(235,242,255,0.50)'); cs(pg,1,'rgba(120,150,210,0.18)');
+  c.fillStyle = pg;
+  c.beginPath(); c.moveTo(0,-H*0.17); c.lineTo(W*0.11,H*0.13); c.lineTo(-W*0.11,H*0.13); c.closePath(); c.fill();
+  c.strokeStyle = 'rgba(255,255,255,0.45)'; c.lineWidth = Math.max(1.2,W/620); c.stroke();
+  c.restore();
+  matVignette(c,W,H,0.66);
+}
+
 var shadowSprite = null;
 function makeShadowSprite(){
   var w = 96, h = 64, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
