@@ -18,8 +18,8 @@ One HTML file. No build step, no dependencies, no server — open it and play.
 | New deal | `N` |
 | Auto-resolve | `A`, once every tableau card is face up |
 | Mute | `M` |
-| Walk in the hub | Arrows / `WASD`, or click |
-| Enter a building | Stand in its doorway, `Enter` |
+| Walk in the hub | Arrows / `WASD`, or click where you want to go |
+| Enter a building | Click it, or stand in its doorway and press `Enter` |
 | Open / leave the hub | `H` / `Esc` |
 
 Build the tableau down in alternating colours, foundations up by suit.
@@ -54,7 +54,8 @@ WASD, or click where you want to go — with a doorway for each part of the game
 You start facing Solitaire Hall, a few steps from a dealt table; The Arena is
 battle royale, The Market is skins, The Vault holds your unopened crates, and
 the Hall of Records has your run on a board beside it. Walk into a doorway and
-press `Enter` to go in. `H` reopens the hub, `Esc` leaves it.
+press `Enter` to go in — or just click the building and your character walks
+over and steps through. `H` reopens the hub, `Esc` leaves it.
 
 **Battle royale.** You plus seven AI climbers on the same seeded deal. The
 lowest score is cut every 20 seconds until one is left. Placement pays out in

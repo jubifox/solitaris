@@ -4333,7 +4333,7 @@ var HUB = {
   camX:0, camY:0, camReady:false, zoom:1,
   viewW:0, viewH:0,
   near:null, glow:0,
-  moveTo:null,
+  moveTo:null, enterOn:null,
   keys:{}
 };
 /* Each place is a facade standing on its own bottom edge, with a doorway in
@@ -4397,8 +4397,20 @@ function hubUse(place){
   toast(stats.wins + ' wins · ' + stats.brWins + ' crowns · best combo ×' + stats.bestCombo, 'gold');
 }
 function hubPointer(p){
-  /* click to walk: aim at the point under the cursor in world space */
-  HUB.moveTo = { x: p.x/HUB.zoom + HUB.camX, y: p.y/HUB.zoom + HUB.camY };
+  var wx = p.x/HUB.zoom + HUB.camX, wy = p.y/HUB.zoom + HUB.camY;
+  HUB.enterOn = null;
+  /* Clicking a building means "go in", not merely "walk over there": someone
+     playing with the mouse alone has no other way to open a door. Walk to the
+     doorway and step through it on arrival. */
+  for (var i=0;i<HUB_PLACES.length;i++){
+    var b = HUB_PLACES[i], d = hubDoor(b);
+    if (wx > b.x - 20 && wx < b.x + b.w + 20 && wy > b.y - 72 && wy < d.y + 104){
+      HUB.moveTo = { x:d.x, y:d.y + 46 };
+      HUB.enterOn = b;
+      return;
+    }
+  }
+  HUB.moveTo = { x:wx, y:wy };
 }
 function hubSolid(px, py){
   for (var i=0;i<HUB_PLACES.length;i++){
@@ -4433,7 +4445,7 @@ function hubUpdate(dt){
   var k = HUB.keys;
   var ax = (k.right ? 1 : 0) - (k.left ? 1 : 0);
   var ay = (k.down ? 1 : 0) - (k.up ? 1 : 0);
-  if (ax || ay) HUB.moveTo = null;
+  if (ax || ay){ HUB.moveTo = null; HUB.enterOn = null; }
   if (HUB.moveTo){
     var dx = HUB.moveTo.x - HUB.x, dy = HUB.moveTo.y - HUB.y;
     var d = Math.sqrt(dx*dx + dy*dy);
@@ -4472,7 +4484,7 @@ function hubUpdate(dt){
   if (HUB.moveTo){
     var prog = Math.abs(HUB.vx) + Math.abs(HUB.vy);
     HUB.stuck = prog < 40 ? (HUB.stuck || 0) + dt : 0;
-    if (HUB.stuck > 1.1){ HUB.moveTo = null; HUB.stuck = 0; }
+    if (HUB.stuck > 1.1){ HUB.moveTo = null; HUB.enterOn = null; HUB.stuck = 0; }
   } else HUB.stuck = 0;
   var moving = Math.abs(HUB.vx) + Math.abs(HUB.vy) > 18;
   HUB.walk += moving ? dt*Math.min(12, 3 + (Math.abs(HUB.vx)+Math.abs(HUB.vy))*0.028) : 0;
@@ -4511,6 +4523,11 @@ function hubUpdate(dt){
   }
   if (HUB.near !== was){ HUB.glow = 0; if (HUB.near) SFX.hover(); }
   HUB.glow = clamp(HUB.glow + (HUB.near ? dt*4 : -dt*6), 0, 1);
+  if (HUB.enterOn && HUB.near === HUB.enterOn && !HUB.moveTo){
+    var go = HUB.enterOn; HUB.enterOn = null;
+    hubUse(go);
+    return;
+  }
 
   for (var mo=0;mo<HUB_MOTES.length;mo++){
     var p = HUB_MOTES[mo];
@@ -4860,8 +4877,8 @@ function hubHud(c){
   c.font = '11px IBM Plex Mono, monospace';
   c.fillStyle = '#8a93c4';
   c.fillText(VW < 720
-    ? 'Arrows or tap to walk  ·  Esc to leave'
-    : 'WASD / arrows to walk  ·  click to move  ·  walk into a doorway  ·  Esc to leave',
+    ? 'Tap a building to go in  ·  Esc to leave'
+    : 'WASD / arrows to walk  ·  click a building to go in  ·  Esc to leave',
     VW/2, VH - 26);
   c.restore();
 }
