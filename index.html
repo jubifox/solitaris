@@ -151,6 +151,15 @@
 
   /* ---------- case opening ---------- */
   .caseopen{align-items:center;justify-content:center;gap:18px;z-index:24;}
+
+  /* the crate that spins open before the strip starts */
+  .crate-stage{display:none;flex-direction:column;align-items:center;gap:14px;}
+  .crate-stage.show{display:flex;}
+  .crate-stage canvas{width:min(70vw,360px);height:min(70vw,360px);display:block;}
+  .crate-cap{font-family:var(--oswald);font-size:13px;letter-spacing:0.22em;text-transform:uppercase;color:var(--haze);}
+
+  .reel-wrap{display:none;flex-direction:column;align-items:center;gap:12px;}
+  .reel-wrap.show{display:flex;}
   .reel-window{
     position:relative;width:min(92vw,860px);height:150px;overflow:hidden;
     border-top:1px solid var(--edge);border-bottom:1px solid var(--edge);
@@ -162,10 +171,19 @@
     width:120px;height:120px;flex:0 0 120px;border:1px solid var(--edge);border-radius:4px;
     background:rgba(255,255,255,0.03);position:relative;overflow:hidden;
   }
-  .reel .rt canvas{width:100%;height:88px;display:block;}
-  .reel .rt .rtn{font-family:var(--mono);font-size:8.5px;text-align:center;color:var(--haze);padding:3px 2px 0;letter-spacing:0.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .reel .rt .rtr{position:absolute;top:0;left:0;right:0;height:3px;}
-  .marker{position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--gold);box-shadow:0 0 18px 3px rgba(245,197,66,0.7);transform:translateX(-1px);z-index:2;}
+  /* the strip tiles and the multi-open tiles share their innards */
+  .rt canvas,.mtile canvas{width:100%;display:block;position:relative;z-index:1;}
+  .rt canvas{height:88px;}
+  .rt .rtn,.mtile .rtn{font-family:var(--mono);font-size:8.5px;text-align:center;color:var(--haze);padding:3px 2px 0;letter-spacing:0.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;z-index:1;}
+  .rt .rtr,.mtile .rtr{position:absolute;top:0;left:0;right:0;height:3px;z-index:2;}
+  /* rarity reads as a glow behind the tile, so a good pull is visible as it
+     flies past rather than only once it has stopped */
+  .rt .rtg,.mtile .rtg{position:absolute;inset:0;z-index:0;opacity:0.55;}
+  .rt.hi,.mtile.hi{border-color:rgba(255,255,255,0.35);}
+  .rt.hi .rtg,.mtile.hi .rtg{opacity:0.9;}
+  .marker{position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--gold);box-shadow:0 0 18px 3px rgba(245,197,66,0.7);transform:translateX(-1px);z-index:3;}
+  .reel-glow{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .25s;}
+  .reel-glow.on{opacity:1;}
   .openrow{display:flex;gap:6px;width:100%;}
   .openbtn{
     flex:1;font-family:var(--oswald);font-size:12px;letter-spacing:0.1em;text-transform:uppercase;
@@ -187,16 +205,17 @@
     transition:opacity .26s ease, transform .42s cubic-bezier(.2,1.5,.4,1);
   }
   .mtile.rev{opacity:1;transform:none;}
-  .mtile canvas{width:100%;height:104px;display:block;}
-  .mtile .mn{font-family:var(--mono);font-size:8.5px;text-align:center;color:var(--haze);padding:4px 3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .mtile .mr{position:absolute;top:0;left:0;right:0;height:3px;z-index:2;}
-  .mtile .mdup{position:absolute;bottom:22px;right:3px;font-family:var(--mono);font-size:8px;color:var(--gold);background:rgba(0,0,0,0.66);padding:1px 4px;}
+  .mtile canvas{height:104px;}
+  .mtile .mdup{position:absolute;top:6px;right:4px;font-family:var(--mono);font-size:8px;color:var(--gold);background:rgba(0,0,0,0.66);padding:1px 4px;z-index:3;}
 
   .case-result{display:none;flex-direction:column;align-items:center;gap:8px;text-align:center;}
-  .case-result.show{display:flex;}
+  .case-result.show{display:flex;animation:crin .4s cubic-bezier(.2,1.4,.4,1);}
   .case-result .cr-name{font-family:var(--cinzel);font-size:24px;letter-spacing:0.1em;}
   .case-result .cr-sub{font-family:var(--mono);font-size:12px;color:var(--haze);text-transform:uppercase;letter-spacing:0.14em;}
+  .case-result canvas.cr-show{width:min(60vw,260px);height:min(45vw,190px);display:block;}
+  .case-result canvas.cr-show.off{display:none;}
   .caseopen .co-actions{display:flex;gap:10px;}
+  @keyframes crin{from{opacity:0;transform:translateY(14px) scale(0.94);}to{opacity:1;transform:none;}}
 
   /* ---------- battle royale ---------- */
   .brlobby{align-items:center;justify-content:center;gap:16px;z-index:22;}
@@ -277,9 +296,20 @@
 
   <!-- CASE OPENING -->
   <div class="overlay caseopen" id="caseopen">
-    <div class="reel-window"><div class="reel" id="reel"></div><div class="marker"></div></div>
+    <div class="crate-stage" id="crate-stage">
+      <canvas id="crate-cv" width="360" height="360"></canvas>
+      <div class="crate-cap" id="crate-cap">Unsealing</div>
+    </div>
+    <div class="reel-wrap" id="reel-wrap">
+      <div class="reel-window">
+        <div class="reel" id="reel"></div>
+        <div class="reel-glow" id="reel-glow"></div>
+        <div class="marker"></div>
+      </div>
+    </div>
     <div class="multi" id="multi-grid"></div>
     <div class="case-result" id="case-result">
+      <canvas class="cr-show" id="cr-show" width="520" height="380"></canvas>
       <div class="cr-name" id="cr-name">—</div>
       <div class="cr-sub" id="cr-sub">—</div>
       <div class="co-actions">
@@ -506,7 +536,18 @@ var SFX = {
   tick(){ noiseHit(0.02,0.08,3200,3); },
   reveal(r){ if (r==='mythic'||r==='legendary'){ [0,4,7,11].forEach(function(iv,k){ setTimeout(function(){ tone(262*Math.pow(1.0595,iv),0.7,'triangle',0.16); },k*60); }); } else tone(660,0.3,'sine',0.14,990); },
   elim(){ tone(120,0.4,'sawtooth',0.16,60); noiseHit(0.3,0.14,500,0.5); },
-  hover(){ tone(2000,0.025,'sine',0.025); }
+  hover(){ tone(2000,0.025,'sine',0.025); },
+  /* ---- case opening ---- */
+  crateSpin(){ noiseHit(1.5,0.07,320,0.9); tone(70,1.6,'sawtooth',0.07,190); tone(140,1.6,'sine',0.045,380); },
+  crateLatch(){ noiseHit(0.05,0.13,780,2.4); tone(210,0.07,'square',0.09,150); },
+  crateOpen(){
+    noiseHit(0.55,0.24,1500,0.5);
+    tone(90,0.6,'sawtooth',0.18,40);
+    [0,7,12].forEach(function(iv,k){ setTimeout(function(){ tone(330*Math.pow(1.0595,iv),0.45,'triangle',0.13); }, k*45); });
+  },
+  /* the strip's tick rises in pitch with how fast the item is travelling */
+  reelTick(speed){ noiseHit(0.022,0.075,2100 + clamp(speed,0,1)*2600, 3); },
+  reelSlow(){ tone(300,0.5,'sine',0.07,180); }
 };
 
 /* ============================================================================
@@ -2928,6 +2969,186 @@ function rollCase(caseId){
   }
   return pool[(Math.random()*pool.length)|0];
 }
+/* ============================================================================
+   CRATE  —  the case itself, spun open before the strip runs
+   ============================================================================ */
+var CRATE_SKIN = {
+  standard:  { body:'#4a3512', trim:'#f5a623', glow:'#f5c542', rune:'#ffe9a8' },
+  prismatic: { body:'#341a4e', trim:'#b45cff', glow:'#d08cff', rune:'#f0d8ff' }
+};
+function mixHex(a, b, t){
+  a = a.replace('#',''); b = b.replace('#','');
+  var an = parseInt(a,16), bn = parseInt(b,16);
+  var r = Math.round(lerp((an>>16)&255, (bn>>16)&255, t));
+  var g = Math.round(lerp((an>>8)&255,  (bn>>8)&255,  t));
+  var bl= Math.round(lerp(an&255,       bn&255,       t));
+  return 'rgb(' + r + ',' + g + ',' + bl + ')';
+}
+/* Rotate a point about Y then X and project it. Larger z is further from the
+   camera, so a face is looking at us exactly when its rotated normal has a
+   negative z — which is also the back-face test. */
+function rot3(x, y, z, yaw, pitch){
+  var cy = Math.cos(yaw), sy = Math.sin(yaw);
+  var x1 = x*cy + z*sy, z1 = -x*sy + z*cy;
+  var cp = Math.cos(pitch), sp = Math.sin(pitch);
+  return { x:x1, y:y*cp - z1*sp, z:y*sp + z1*cp };
+}
+var CRATE_FACES = [
+  /* corner index bits: 1 = +x, 2 = +y, 4 = +z */
+  { v:[0,1,3,2], n:[0,0,-1] }, { v:[5,4,6,7], n:[0,0,1] },
+  { v:[4,0,2,6], n:[-1,0,0] }, { v:[1,5,7,3], n:[1,0,0] },
+  { v:[4,5,1,0], n:[0,-1,0] }, { v:[2,3,7,6], n:[0,1,0] }
+];
+var CRATE_LIGHT = (function(){
+  var l = [-0.35,-0.55,-0.72], m = Math.sqrt(l[0]*l[0]+l[1]*l[1]+l[2]*l[2]);
+  return [l[0]/m, l[1]/m, l[2]/m];
+})();
+/* One box of the crate, painted back-to-front with per-face lambert shading. */
+function drawBox(c, cx, cy, hw, hh, hd, yaw, pitch, dist, skin, alpha, rune, topFill){
+  var corner = [];
+  for (var i=0;i<8;i++){
+    var p = rot3((i&1?hw:-hw), (i&2?hh:-hh), (i&4?hd:-hd), yaw, pitch);
+    var f = dist/(dist + p.z);
+    corner.push({ x:cx + p.x*f, y:cy + p.y*f, z:p.z });
+  }
+  var draw = [];
+  for (var k=0;k<CRATE_FACES.length;k++){
+    var fc = CRATE_FACES[k];
+    var n = rot3(fc.n[0], fc.n[1], fc.n[2], yaw, pitch);
+    if (n.z >= -0.02) continue;                       /* facing away */
+    var zc = 0;
+    for (var j=0;j<4;j++) zc += corner[fc.v[j]].z;
+    var lam = Math.max(0, n.x*CRATE_LIGHT[0] + n.y*CRATE_LIGHT[1] + n.z*CRATE_LIGHT[2]);
+    draw.push({ f:fc, z:zc/4, lam:lam, front:(fc.n[2] !== 0) });
+  }
+  draw.sort(function(a,b){ return b.z - a.z; });
+  c.save();
+  c.globalAlpha = alpha;
+  c.lineJoin = 'round';
+  for (var d=0;d<draw.length;d++){
+    var fa = draw[d], vs = fa.f.v;
+    c.beginPath();
+    c.moveTo(corner[vs[0]].x, corner[vs[0]].y);
+    for (var q=1;q<4;q++) c.lineTo(corner[vs[q]].x, corner[vs[q]].y);
+    c.closePath();
+    /* the lid is off: the top of the body is the light pouring out of it */
+    c.fillStyle = (topFill && fa.f.n[1] < 0) ? topFill
+                : mixHex(skin.body, skin.trim, 0.12 + fa.lam*0.55);
+    c.fill();
+    c.strokeStyle = skin.trim; c.lineWidth = Math.max(1.2, hw*0.045);
+    c.globalAlpha = alpha * (0.45 + fa.lam*0.55);
+    c.stroke();
+    c.globalAlpha = alpha;
+    /* a sigil on the broad faces, so something readable is always turned to us */
+    if (rune && fa.lam > 0.35){
+      var mx = 0, my = 0;
+      for (var m2=0;m2<4;m2++){ mx += corner[vs[m2]].x; my += corner[vs[m2]].y; }
+      mx /= 4; my /= 4;
+      var span = Math.abs(corner[vs[1]].x - corner[vs[0]].x) + Math.abs(corner[vs[1]].y - corner[vs[0]].y);
+      c.save();
+      c.globalAlpha = alpha * (fa.lam - 0.35) * 1.3;
+      c.strokeStyle = skin.rune; c.lineWidth = Math.max(1, hw*0.03);
+      starPath(c, mx, my, span*0.10, span*0.26, 6); c.stroke();
+      c.restore();
+    }
+  }
+  c.restore();
+}
+var crateState = null;
+function startCrate(caseId, n, onDone){
+  document.getElementById('reel-wrap').classList.remove('show');
+  document.getElementById('multi-grid').classList.remove('show');
+  document.getElementById('case-result').classList.remove('show');
+  document.getElementById('crate-stage').classList.add('show');
+  document.getElementById('crate-cap').textContent =
+    (CASES[caseId] ? CASES[caseId].name : 'Case') + (n > 1 ? '  ×' + n : '');
+  crateState = { caseId:caseId, t:0, yaw:0, open:0, latch:0, popped:false, onDone:onDone };
+  showOverlay('caseopen');
+  SFX.crateSpin();
+}
+var CRATE_SPIN_END = 1.72, CRATE_POP = 1.96, CRATE_DONE = 2.44;
+function updateCrate(dt){
+  if (!crateState) return;
+  var st = crateState;
+  st.t += dt;
+  /* spin up smoothly, hold flat out, then throw the lid */
+  var omega = 1.1 + 7.4*Math.pow(clamp(st.t/CRATE_SPIN_END, 0, 1), 1.6);
+  st.yaw += omega*dt;
+  /* three latch clacks as it winds up */
+  var latchAt = [0.55, 1.05, 1.52];
+  while (st.latch < latchAt.length && st.t >= latchAt[st.latch]){ st.latch++; SFX.crateLatch(); }
+  st.open = clamp((st.t - CRATE_POP) / (CRATE_DONE - CRATE_POP), 0, 1);
+  if (st.open > 0 && !st.popped){
+    st.popped = true;
+    SFX.crateOpen();
+    var sk = CRATE_SKIN[st.caseId] || CRATE_SKIN.standard;
+    var bx = VW/2, by = VH*0.42;
+    ring(bx, by, sk.glow, 8, CW*2.0, 0.6, 5);
+    spark(bx, by, sk.glow, 90, 460, {grav:260});
+    sparkle(bx, by, '#fff', 26);
+    flash = Math.max(flash, 0.34); flashCol = sk.glow;
+    doShake(10); fxImpact(0.6);
+  }
+  drawCrate();
+  if (st.t >= CRATE_DONE){
+    var go = st.onDone;
+    crateState = null;
+    document.getElementById('crate-stage').classList.remove('show');
+    if (go) go();
+  }
+}
+function drawCrate(){
+  var st = crateState;
+  var cv = document.getElementById('crate-cv');
+  if (!st || !cv) return;
+  var c = cv.getContext('2d'), W = cv.width, H = cv.height;
+  var sk = CRATE_SKIN[st.caseId] || CRATE_SKIN.standard;
+  c.setTransform(1,0,0,1,0,0);
+  c.clearRect(0,0,W,H);
+  var cx = W/2, cy = H*0.52, S = W*0.23;
+  /* charge shudder over the last half-second before the lid goes */
+  var charge = clamp((st.t - CRATE_SPIN_END) / (CRATE_POP - CRATE_SPIN_END), 0, 1);
+  var shudder = charge * (1 - st.open) * S*0.05;
+  cx += Math.sin(st.t*61)*shudder; cy += Math.cos(st.t*47)*shudder;
+  /* positive pitch looks down onto the crate; the slow bob keeps it alive */
+  var pitch = 0.40 + Math.sin(st.t*1.3)*0.05;
+  var dist = S*8;
+  var rgb = hexRgb(sk.glow);
+  /* floor glow + the light that escapes once the seal breaks */
+  var gl = c.createRadialGradient(cx, cy + S*0.7, 0, cx, cy + S*0.7, S*(2.2 + st.open*1.6));
+  cs(gl, 0, 'rgba(' + rgb + ',' + (0.14 + charge*0.20 + st.open*0.5) + ')');
+  cs(gl, 1, 'rgba(0,0,0,0)');
+  c.fillStyle = gl; c.fillRect(0,0,W,H);
+  /* contact shadow, so it sits on something */
+  c.save();
+  c.fillStyle = 'rgba(0,0,0,0.45)';
+  c.beginPath(); c.ellipse(cx, cy + S*1.02, S*1.15, S*0.22, 0, 0, 6.283); c.fill();
+  c.restore();
+  if (st.open > 0){
+    c.save(); c.globalCompositeOperation = 'lighter';
+    for (var r=0;r<14;r++){
+      var a = r/14*6.283 + st.t*1.4;
+      c.globalAlpha = 0.18*st.open*(1-st.open*0.3);
+      c.strokeStyle = sk.glow; c.lineWidth = S*0.10*(1-st.open*0.4);
+      c.beginPath(); c.moveTo(cx, cy);
+      c.lineTo(cx + Math.cos(a)*S*(2.0+st.open*2.2), cy + Math.sin(a)*S*(2.0+st.open*2.2));
+      c.stroke();
+    }
+    c.restore();
+  }
+  /* Body and lid share a footprint so the lid seats cleanly on the body when
+     shut; once it lifts, the body's top face becomes the glow of the contents. */
+  var bodyHH = S*0.56, bodyY = cy + S*0.44;
+  var inside = st.open > 0.01
+    ? 'rgba(' + rgb + ',' + (0.35 + 0.65*st.open) + ')'
+    : null;
+  drawBox(c, cx, bodyY, S, bodyHH, S*0.78, st.yaw, pitch, dist, sk, 1, true, inside);
+  var lift = st.open*S*2.4;
+  var lidPitch = pitch + st.open*0.6;
+  drawBox(c, cx, bodyY - bodyHH - S*0.19 - lift, S*1.07, S*0.19, S*0.84,
+          st.yaw + st.open*0.8, lidPitch, dist, sk, 1 - st.open*0.5, false);
+}
+
 var reelState = null;
 function canAfford(cost){ return (!cost.shards || wallet.shards >= cost.shards) && (!cost.gems || wallet.gems >= cost.gems); }
 function payCost(cost){ if (cost.shards){ wallet.shards -= cost.shards; } if (cost.gems){ wallet.gems -= cost.gems; } saveWallet(); flushWallet(); }
@@ -2964,67 +3185,104 @@ function openCase(caseId, free, n){
   refreshWalletUI();
   audioInit(); ac();
   stats.opened += n; saveStats();
-  reelState = null; multiState = null;
-  if (n > 1){ openCaseMulti(caseId, n); return; }
+  reelState = null; multiState = null; showState = null;
+  /* the crate spins open first; what it hands off to depends on the count */
+  startCrate(caseId, n, n > 1
+    ? function(){ openCaseMulti(caseId, n); }
+    : function(){ startReel(caseId, rollCase(caseId)); });
+}
 
-  var winner = rollCase(caseId);
+/* A rarity wash sitting behind the tile, so a good pull is legible as it flies
+   past rather than only once the strip has stopped. */
+function rarityWash(rar){
+  var rgb = hexRgb(RAR_COL[rar] || RAR_COL.common);
+  return 'radial-gradient(130% 92% at 50% 100%, rgba(' + rgb + ',0.62) 0%, rgba(' + rgb + ',0.14) 52%, rgba(0,0,0,0) 100%)';
+}
+function makeReelTile(it, cls, cvH){
+  var d = document.createElement('div');
+  d.className = cls + (RAR_ORDER[it.rarity] >= 3 ? ' hi' : '');
+  var wash = document.createElement('div'); wash.className = 'rtg';
+  wash.style.background = rarityWash(it.rarity);
+  var rbar = document.createElement('div'); rbar.className = 'rtr'; rbar.style.background = RAR_COL[it.rarity];
+  var cv = document.createElement('canvas'); cv.width = 120; cv.height = cvH || 88;
+  renderThumb(it, cv);
+  var nm = document.createElement('div'); nm.className = 'rtn'; nm.textContent = it.name;
+  d.appendChild(wash); d.appendChild(rbar); d.appendChild(cv); d.appendChild(nm);
+  return d;
+}
+var REEL_LAND = 54, REEL_TOTAL = 64;
+function startReel(caseId, winner){
   var dupe = owns(winner);
-
   document.getElementById('multi-grid').classList.remove('show');
-  document.querySelector('.reel-window').style.display = '';
+  document.getElementById('crate-stage').classList.remove('show');
+  document.getElementById('reel-wrap').classList.add('show');
+  document.getElementById('reel-glow').classList.remove('on');
 
-  /* build reel: 48 tiles, winner at index 40 */
   var reelEl = document.getElementById('reel');
   reelEl.innerHTML = '';
-  var allIds = Object.keys(CATALOG);
   var tiles = [];
-  var LAND = 40, TOTAL = 48;
-  for (var i=0;i<TOTAL;i++){
-    var id = (i === LAND) ? winner : allIds[(Math.random()*allIds.length)|0];
-    var it = CATALOG[id];
-    var d = document.createElement('div');
-    d.className = 'rt';
-    var rbar = document.createElement('div'); rbar.className = 'rtr'; rbar.style.background = RAR_COL[it.rarity];
-    var cv = document.createElement('canvas'); cv.width = 120; cv.height = 88;
-    renderThumb(it, cv);
-    var nm = document.createElement('div'); nm.className = 'rtn'; nm.textContent = it.name;
-    d.appendChild(rbar); d.appendChild(cv); d.appendChild(nm);
+  for (var i=0;i<REEL_TOTAL;i++){
+    /* fillers are rolled from this case's own table, so the strip looks like
+       it belongs to the crate you just opened */
+    var id = (i === REEL_LAND) ? winner : rollCase(caseId);
+    var d = makeReelTile(CATALOG[id], 'rt');
     reelEl.appendChild(d);
     tiles.push(d);
   }
-  showOverlay('caseopen');
   document.getElementById('case-result').classList.remove('show');
 
   /* Measure the real geometry instead of trusting CSS constants — box model,
-     borders and gaps all feed into the pitch, and a 2px error over 40 tiles
+     borders and gaps all feed into the pitch, and a 2px error over 54 tiles
      lands the marker on the wrong item. */
   var win = document.querySelector('.reel-window');
   var winWidth = win.clientWidth || 860;
-  var target = tiles[LAND];
+  var target = tiles[REEL_LAND];
   var pitch = (tiles.length > 1) ? (tiles[1].offsetLeft - tiles[0].offsetLeft) : 130;
   if (!(pitch > 1)) pitch = 130;
   var tileW = target.offsetWidth || 120;
   var tileCenter = target.offsetLeft + tileW/2;
-  var jitter = rnd(-tileW*0.26, tileW*0.26);
+  var jitter = rnd(-tileW*0.30, tileW*0.30);
   var endX = winWidth/2 - tileCenter + jitter;
   reelState = {
-    x: 0, endX: endX, t: 0, dur: 4.6 + Math.random()*0.8,
+    x: 0, endX: endX, t: 0, dur: 5.5 + Math.random()*0.9,
     lastCenter: -1, done:false, winner:winner, dupe:dupe, caseId:caseId,
-    winWidth: winWidth, pitch: pitch, half: tileW/2
+    winWidth: winWidth, pitch: pitch, half: tileW/2, slowed:false
   };
   reelEl.style.transform = 'translateX(0px)';
+  var gl = document.getElementById('reel-glow');
+  gl.style.background = 'radial-gradient(60% 100% at 50% 50%, rgba(245,197,66,0.30) 0%, rgba(0,0,0,0) 70%)';
+}
+/* Quintic glide onto the marker, with a damped rock-back over the last fifth
+   so the strip settles onto the item instead of freezing the instant it lands. */
+function reelEase(k){
+  var e = 1 - Math.pow(1 - k, 5);
+  if (k > 0.82){
+    var t = (k - 0.82) / 0.18;
+    e += Math.sin(t * 6.283) * 0.011 * (1 - t) * (1 - t);
+  }
+  return e;
 }
 function updateReel(dt){
   if (!reelState || reelState.done) return;
   var r = reelState;
+  var prev = r.x;
   r.t += dt;
   var k = clamp(r.t / r.dur, 0, 1);
-  var e = 1 - Math.pow(1 - k, 4); /* easeOutQuart */
-  r.x = lerp(0, r.endX, e);
+  r.x = lerp(0, r.endX, reelEase(k));
   var reelEl = document.getElementById('reel');
   if (reelEl) reelEl.style.transform = 'translateX(' + r.x.toFixed(1) + 'px)';
+  /* the final approach lights the window up and drops a held tone under it */
+  if (k > 0.80 && !r.slowed){
+    r.slowed = true;
+    SFX.reelSlow();
+    document.getElementById('reel-glow').classList.add('on');
+  }
   var centerIdx = Math.round((-r.x + r.winWidth/2 - r.half) / r.pitch);
-  if (centerIdx !== r.lastCenter && k < 0.999){ r.lastCenter = centerIdx; SFX.tick(); }
+  if (centerIdx !== r.lastCenter && k < 0.999){
+    r.lastCenter = centerIdx;
+    var speed = Math.abs(r.x - prev) / Math.max(dt, 0.001);
+    SFX.reelTick(speed / (r.pitch * 26));
+  }
   if (k >= 1){ r.done = true; revealCase(); }
 }
 function revealCase(){
@@ -3039,6 +3297,11 @@ function revealCase(){
   sparkle(cx,cy,'#fff', rar==='mythic'?60:30);
   confetti(cx,cy, rar==='mythic'?120:(rar==='legendary'?70:30), [col,'#fff','#f5c542']);
   flash = rar==='mythic'?0.8:(rar==='legendary'?0.55:0.3); flashCol = col;
+  var rg = document.getElementById('reel-glow');
+  if (rg){
+    rg.style.background = 'radial-gradient(60% 100% at 50% 50%, rgba(' + hexRgb(col) + ',0.5) 0%, rgba(0,0,0,0) 70%)';
+    rg.classList.add('on');
+  }
   doShake(rar==='mythic'?18:(rar==='legendary'?12:6));
   fxImpact(rar==='mythic'?1:0.5);
 
@@ -3053,14 +3316,104 @@ function revealCase(){
   document.getElementById('cr-name').textContent = item.name;
   document.getElementById('cr-name').style.color = col;
   document.getElementById('cr-sub').textContent = sub;
+  showcase(item, rar);
   cr.classList.add('show');
   refreshWalletUI();
 }
+
+/* ---------- the won item, turned over under a rarity beam ---------- */
+var showState = null;
+function showcase(item, rar){
+  var cv = document.getElementById('cr-show');
+  if (!cv) return;
+  cv.classList.remove('off');
+  showState = { item:item, rar:rar, t:0 };
+}
+function hideShowcase(){
+  showState = null;
+  var cv = document.getElementById('cr-show');
+  if (cv) cv.classList.add('off');
+}
+function drawShowcase(dt){
+  if (!showState) return;
+  var st = showState;
+  st.t += dt;
+  var cv = document.getElementById('cr-show');
+  if (!cv) return;
+  var c = cv.getContext('2d'), W = cv.width, H = cv.height;
+  var col = RAR_COL[st.rar] || RAR_COL.common, rgb = hexRgb(col);
+  c.setTransform(1,0,0,1,0,0);
+  c.clearRect(0,0,W,H);
+  /* beam: rays sweeping out of the item, brighter the rarer it is */
+  var rays = RAR_ORDER[st.rar] >= 3 ? 16 : 10;
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (var i=0;i<rays;i++){
+    var a = i/rays*6.283 + st.t*0.5;
+    var len = W*0.52;
+    /* fade each ray out along its length so it does not cut off square at the
+       edge of the panel */
+    var rg2 = c.createLinearGradient(W/2, H/2, W/2 + Math.cos(a)*len, H/2 + Math.sin(a)*len);
+    cs(rg2, 0, 'rgba(' + rgb + ',' + (0.30 + 0.16*Math.sin(st.t*2 + i)) + ')');
+    cs(rg2, 1, 'rgba(' + rgb + ',0)');
+    c.strokeStyle = rg2; c.lineWidth = W*0.05;
+    c.beginPath(); c.moveTo(W/2, H/2);
+    c.lineTo(W/2 + Math.cos(a)*len, H/2 + Math.sin(a)*len);
+    c.stroke();
+  }
+  c.restore();
+  var gl = c.createRadialGradient(W/2, H/2, 0, W/2, H/2, W*0.46);
+  cs(gl, 0, 'rgba(' + rgb + ',0.42)'); cs(gl, 1, 'rgba(0,0,0,0)');
+  c.fillStyle = gl; c.fillRect(0,0,W,H);
+
+  var ph = (st.t*0.55) % 1;
+  if (st.item.type === 'mat'){
+    /* a table has no front and back to turn over — show it as a plate */
+    var pw = W*0.74, phh = H*0.62;
+    c.save();
+    c.translate(W/2 - pw/2, H/2 - phh/2);
+    c.beginPath(); c.rect(0,0,pw,phh); c.clip();
+    try { (st.item.bg || matDeepspace)(c, pw, phh, st.t); } catch(e){}
+    c.restore();
+    c.strokeStyle = col; c.lineWidth = 3;
+    c.strokeRect(W/2 - pw/2, H/2 - phh/2, pw, phh);
+  } else {
+    /* Card faces and sleeves turn on their long axis, the way you would turn
+       one over in your hand. The cosine is flattened so the item sits face-on
+       for most of the turn and snaps through edge-on, rather than spending
+       half its time as a sliver. */
+    var ca = Math.cos(st.t*0.95);
+    var sx = (ca < 0 ? -1 : 1) * Math.pow(Math.abs(ca), 0.42);
+    var w = W*0.44, h = w*1.4;
+    c.save();
+    c.translate(W/2, H/2);
+    c.scale(Math.max(0.05, Math.abs(sx)), 1);
+    try {
+      if (st.item.type === 'card' && st.item.face) st.item.face(c, THUMB_CARD, w, h);
+      else (st.item.back || CATALOG[SLEEVE_DEFAULT].back)(c, w, h);
+      if (st.item.frame) st.item.frame(c, w, h, ph);
+    } catch(e){}
+    /* a highlight sweeping across the face as it turns */
+    c.save();
+    rrpath(c, -w/2, -h/2, w, h, w*0.09); c.clip();
+    c.globalCompositeOperation = 'lighter';
+    var swp = ((st.t*0.5) % 1) * 2.4 - 0.7;
+    var sg = c.createLinearGradient(-w/2 + swp*w, -h/2, -w/2 + swp*w + w*0.4, h/2);
+    cs(sg, 0, 'rgba(255,255,255,0)'); cs(sg, 0.5, 'rgba(255,255,255,0.18)');
+    cs(sg, 1, 'rgba(255,255,255,0)');
+    c.fillStyle = sg; c.fillRect(-w/2, -h/2, w, h);
+    c.restore();
+    c.restore();
+  }
+}
+
 function closeCaseOpen(){
   hideOverlay('caseopen');
-  reelState = null; multiState = null;
+  reelState = null; multiState = null; crateState = null;
+  hideShowcase();
   document.getElementById('multi-grid').classList.remove('show');
-  document.querySelector('.reel-window').style.display = '';
+  document.getElementById('crate-stage').classList.remove('show');
+  document.getElementById('reel-wrap').classList.remove('show');
+  document.getElementById('reel-glow').classList.remove('on');
   updatePendingBadge();
   if (shopOpen){ showOverlay('shop'); buildShop(); }
   else { resumeGame(); }
@@ -3072,7 +3425,8 @@ var RAR_ORDER = { common:0, rare:1, epic:2, legendary:3, mythic:4 };
 function openCaseMulti(caseId, n){
   var grid = document.getElementById('multi-grid');
   grid.innerHTML = '';
-  document.querySelector('.reel-window').style.display = 'none';
+  document.getElementById('reel-wrap').classList.remove('show');
+  document.getElementById('crate-stage').classList.remove('show');
   grid.classList.add('show');
   document.getElementById('case-result').classList.remove('show');
 
@@ -3080,12 +3434,7 @@ function openCaseMulti(caseId, n){
   for (var i=0;i<n;i++){
     var id = rollCase(caseId);
     var it = CATALOG[id];
-    var d = document.createElement('div'); d.className = 'mtile';
-    var rb = document.createElement('div'); rb.className = 'mr'; rb.style.background = RAR_COL[it.rarity];
-    var cv = document.createElement('canvas'); cv.width = 120; cv.height = 104;
-    renderThumb(it, cv, T);
-    var nm = document.createElement('div'); nm.className = 'mn'; nm.textContent = it.name;
-    d.appendChild(rb); d.appendChild(cv); d.appendChild(nm);
+    var d = makeReelTile(it, 'mtile', 104);
     grid.appendChild(d);
     picks.push({ id:id, item:it, el:d, dup:null });
   }
@@ -3102,6 +3451,11 @@ function updateMulti(){
     document.getElementById('cr-name').textContent = m.unlocked + ' new · ' + m.refunded.toLocaleString() + ' ◈ back';
     document.getElementById('cr-name').style.color = RAR_COL[m.best];
     document.getElementById('cr-sub').textContent = 'Best pull: ' + capitalize(m.best);
+    var bestPick = null;
+    for (var bi=0;bi<m.picks.length;bi++){
+      if (!bestPick || RAR_ORDER[m.picks[bi].item.rarity] > RAR_ORDER[bestPick.item.rarity]) bestPick = m.picks[bi];
+    }
+    if (bestPick) showcase(bestPick.item, bestPick.item.rarity);
     cr.classList.add('show');
     refreshWalletUI(); flushWallet();
     if (RAR_ORDER[m.best] >= 3){
@@ -3243,6 +3597,9 @@ function renderThumb(item, cv, t){
 var shopThumbIdx = 0;
 function updateShopThumbs(){
   if (!shopOpen || !shopThumbs.length || perfTier <= 0) return;
+  /* the market is still 'open' underneath a case opening — don't spend the
+     frame budget animating thumbnails nobody can see */
+  if (document.getElementById('caseopen').classList.contains('show')) return;
   if (nowMs < shopThumbNext) return;
   shopThumbNext = nowMs + 55;
   /* Time-budgeted round-robin: cheap card thumbs get refreshed many per tick,
@@ -3574,8 +3931,10 @@ function update(dt){
 
   updateParticles(gdt);
   updateTexts(gdt);
+  updateCrate(dt);
   updateReel(dt);
   updateMulti();
+  drawShowcase(dt);
   applyPendingEquip();
   updateShopThumbs();
 
@@ -3978,7 +4337,7 @@ window.addEventListener('keydown', function(e){
       if (shopOpen) closeShop();
       var lob = document.getElementById('brlobby');
       if (lob.classList.contains('show') && BR.phase !== 'run' && BR.phase !== 'countdown'){ hideOverlay('brlobby'); resumeGame(); }
-      if (document.getElementById('caseopen').classList.contains('show') && (!reelState || reelState.done)) closeCaseOpen();
+      if (document.getElementById('caseopen').classList.contains('show') && !crateState && (!reelState || reelState.done)) closeCaseOpen();
     }
     return;
   }
