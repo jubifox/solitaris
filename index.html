@@ -5708,16 +5708,128 @@ function arcUpdate(dt){
   if (ARC.over){ ARC.overT += dt; return; }
   if (ARC.def.update) ARC.def.update(ARC.g, dt);
 }
+/* ---------- the rooms ----------
+   A venue used to be your table felt with a flat sheet of black over it, which
+   made all ten games look like the same dialog. Each category now gets a room
+   built around the play area: the Card Room a rail of polished wood under an
+   overhead lamp, the Arcade a neon cabinet with the floor receding away under
+   it, the Coliseum stone walls and torches. The felt still shows through in
+   the middle, because that is the cosmetic you paid for. It is baked to a
+   sprite and redrawn only when the window changes size. */
+var _arcRoom = { key:'', cv:null };
+function arcRoomSprite(cat){
+  var key = cat + '|' + Math.round(VW) + 'x' + Math.round(VH) + '|' + Math.round(ARC.top);
+  if (_arcRoom.key === key) return _arcRoom.cv;
+  var cv = _arcRoom.cv && _arcRoom.cv.width === Math.round(VW) && _arcRoom.cv.height === Math.round(VH)
+    ? _arcRoom.cv : document.createElement('canvas');
+  cv.width = Math.round(VW); cv.height = Math.round(VH);
+  var c = cv.getContext('2d');
+  c.clearRect(0, 0, VW, VH);
+  /* The frame is built outwards from the play area rather than inwards from
+     the window, so nothing a game draws can end up sitting on the woodwork. */
+  var inset = 26;
+  var iT = ARC.top - 8, iB = VH - 20, iL = 14 + inset, iR = VW - 14 - inset;
+  var box = { t:iT, b:iB, l:iL, r:iR, o:inset };
+  if (cat === 'card') arcRoomCard(c, box);
+  else if (cat === 'puzzle') arcRoomArcade(c, box);
+  else arcRoomColiseum(c, box);
+  _arcRoom.key = key; _arcRoom.cv = cv;
+  return cv;
+}
+function arcRoomHollow(c, k, grad, radius){
+  var g = c.createLinearGradient(0, 0, 0, VH);
+  cs(g, 0, grad[0]); cs(g, 0.5, grad[1]); cs(g, 1, grad[2]);
+  c.fillStyle = g; c.fillRect(0, 0, VW, VH);
+  c.save();
+  c.globalCompositeOperation = 'destination-out';
+  rrpath(c, k.l, k.t, k.r - k.l, k.b - k.t, radius); c.fill();
+  c.restore();
+}
+function arcRoomCard(c, k){
+  arcRoomHollow(c, k, ['rgba(10,7,18,0.94)', 'rgba(8,6,16,0.74)', 'rgba(6,4,12,0.96)'], 22);
+  /* the rail: polished wood, lit from above */
+  var wg = c.createLinearGradient(0, k.t - k.o, 0, k.t + k.o);
+  cs(wg, 0, '#4e3119'); cs(wg, 0.5, '#8a5c32'); cs(wg, 1, '#33200f');
+  c.strokeStyle = wg; c.lineWidth = k.o;
+  rrpath(c, k.l - k.o/2, k.t - k.o/2, (k.r - k.l) + k.o, (k.b - k.t) + k.o, 26); c.stroke();
+  c.strokeStyle = 'rgba(245,205,140,0.32)'; c.lineWidth = 2;
+  rrpath(c, k.l, k.t, k.r - k.l, k.b - k.t, 22); c.stroke();
+  c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 2;
+  rrpath(c, k.l - k.o, k.t - k.o, (k.r - k.l) + k.o*2, (k.b - k.t) + k.o*2, 30); c.stroke();
+  /* brass studs along the rail */
+  c.fillStyle = 'rgba(232,196,120,0.5)';
+  for (var x = k.l + 24; x < k.r - 12; x += 56){
+    c.beginPath(); c.arc(x, k.t - k.o/2, 2.6, 0, 6.283); c.fill();
+    c.beginPath(); c.arc(x, k.b + k.o/2, 2.6, 0, 6.283); c.fill();
+  }
+  /* one lamp hanging over the middle of the table */
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  var lg = c.createRadialGradient(VW/2, k.t + 30, 0, VW/2, k.t + 30, VH*0.82);
+  cs(lg, 0, 'rgba(255,226,170,0.17)'); cs(lg, 0.5, 'rgba(255,210,150,0.055)'); cs(lg, 1, 'rgba(0,0,0,0)');
+  c.fillStyle = lg; c.fillRect(0, 0, VW, VH);
+  c.restore();
+}
+function arcRoomArcade(c, k){
+  arcRoomHollow(c, k, ['rgba(4,10,14,0.95)', 'rgba(4,10,14,0.72)', 'rgba(2,6,10,0.97)'], 14);
+  /* a floor of neon lines running away under the cabinet */
+  c.save();
+  c.beginPath(); c.rect(0, k.b + k.o, VW, VH - k.b - k.o); c.clip();
+  c.strokeStyle = 'rgba(111,240,200,0.18)'; c.lineWidth = 1.5;
+  c.beginPath();
+  for (var i=-12;i<=12;i++){ c.moveTo(VW/2 + i*30, k.b + k.o); c.lineTo(VW/2 + i*260, VH + 60); }
+  for (var r=1;r<=4;r++){ var yy = k.b + k.o + Math.pow(r/4, 1.9)*(VH - k.b - k.o); c.moveTo(0, yy); c.lineTo(VW, yy); }
+  c.stroke();
+  c.restore();
+  /* neon tube round the screen */
+  c.strokeStyle = 'rgba(111,240,200,0.16)'; c.lineWidth = 14;
+  rrpath(c, k.l, k.t, k.r - k.l, k.b - k.t, 14); c.stroke();
+  c.strokeStyle = 'rgba(111,240,200,0.8)'; c.lineWidth = 3;
+  rrpath(c, k.l, k.t, k.r - k.l, k.b - k.t, 14); c.stroke();
+  c.strokeStyle = 'rgba(160,255,230,0.42)'; c.lineWidth = 1;
+  rrpath(c, k.l - k.o + 6, k.t - k.o + 6, (k.r - k.l) + (k.o - 6)*2, (k.b - k.t) + (k.o - 6)*2, 20); c.stroke();
+  /* scanlines across the glass */
+  c.save();
+  c.beginPath(); rrpath(c, k.l, k.t, k.r - k.l, k.b - k.t, 14); c.clip();
+  c.fillStyle = 'rgba(0,0,0,0.18)';
+  for (var y = k.t; y < k.b; y += 4) c.fillRect(k.l, y, k.r - k.l, 1.5);
+  c.restore();
+}
+function arcRoomColiseum(c, k){
+  arcRoomHollow(c, k, ['rgba(14,6,12,0.95)', 'rgba(12,6,12,0.72)', 'rgba(8,4,8,0.97)'], 10);
+  /* dressed stone round the floor */
+  c.strokeStyle = 'rgba(126,100,116,0.34)'; c.lineWidth = 1.3;
+  var bw = 70, i;
+  for (i=0;i*bw < (k.r - k.l) + bw*2; i++){
+    c.strokeRect(k.l - k.o + i*bw, k.t - k.o + 2, bw, k.o - 4);
+    c.strokeRect(k.l - k.o + i*bw + (i%2 ? bw/2 : 0) - bw/2, k.b + 2, bw, k.o - 4);
+  }
+  for (i=0;i*bw < (k.b - k.t) + bw*2; i++){
+    c.strokeRect(k.l - k.o + 2, k.t - k.o + i*bw, k.o - 4, bw);
+    c.strokeRect(k.r + 2, k.t - k.o + i*bw + (i%2 ? bw/2 : 0), k.o - 4, bw);
+  }
+  c.strokeStyle = 'rgba(255,154,213,0.5)'; c.lineWidth = 2;
+  rrpath(c, k.l, k.t, k.r - k.l, k.b - k.t, 10); c.stroke();
+  /* torches at the four corners */
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  var pts = [[k.l + 26, k.t + 26], [k.r - 26, k.t + 26], [k.l + 26, k.b - 26], [k.r - 26, k.b - 26]];
+  for (var t=0;t<4;t++){
+    var tg = c.createRadialGradient(pts[t][0], pts[t][1], 0, pts[t][0], pts[t][1], 230);
+    cs(tg, 0, 'rgba(255,150,80,0.22)'); cs(tg, 1, 'rgba(0,0,0,0)');
+    c.fillStyle = tg;
+    c.beginPath(); c.arc(pts[t][0], pts[t][1], 230, 0, 6.283); c.fill();
+  }
+  c.restore();
+}
 function arcDraw(c){
   drawBG(c);
-  c.save();
-  c.fillStyle = 'rgba(4,3,12,0.62)'; c.fillRect(0, 0, VW, VH);
-  c.restore();
   /* Everything a venue draws lives under the page's own button bar, which is
      real DOM sitting on top of the canvas — anything drawn up there would be
      unclickable. */
   ARC.barY = uiTopH + 10;
-  ARC.top = ARC.barY + 68;
+  ARC.top = ARC.barY + 90;
+  c.drawImage(arcRoomSprite(ARC.pick || (ARC.def ? ARC.def.cat : 'card')), 0, 0);
   ARC.btnsNext = [];
   /* find the button under the cursor so it can light up */
   ARC.hotBtn = -1;
@@ -5946,7 +6058,7 @@ arcDef({
 });
 function fcLay(g){
   var topY = ARC.top;
-  var cw = Math.min(VW/9.6, (VH - topY - 70)/6.4/1.4, 104);
+  var cw = Math.min(VW/9.6, (VH - topY - 96)/6.4/1.4, 126);
   var ch = cw*1.4, gap = cw*0.14;
   var totalW = cw*8 + gap*7;
   var x0 = (VW - totalW)/2;
@@ -6105,9 +6217,9 @@ function fcDraw(g, c){
         arcGlowRect(c, cx, y, L.cw, L.ch, '#6ff0c8', 0.8);
     }
   }
-  arcText(c, arcClock(arcSecs(g)) + '   ' + g.moves + ' MOVES', VW/2, VH - 24, 13, 'rgba(200,212,240,0.65)', 'mono');
+  arcText(c, arcClock(arcSecs(g)) + '   ' + g.moves + ' MOVES', VW/2, VH - 42, 13, 'rgba(200,212,240,0.65)', 'mono');
   arcText(c, g.sel ? 'CLICK WHERE IT GOES' : (arcNarrow() ? 'TAP A CARD, THEN ITS DESTINATION' : 'CLICK A CARD, THEN ITS DESTINATION  ·  A SENDS EVERYTHING SAFE HOME'),
-    VW/2, VH - 46, 11, 'rgba(159,208,255,0.5)', 'mono');
+    VW/2, VH - 62, 11, 'rgba(159,208,255,0.5)', 'mono');
 }
 
 /* ----------------------------------------------------------------- PYRAMID */
