@@ -3324,6 +3324,7 @@ function triggerWin(){
   var el = document.getElementById('autowrap'); if (el) el.classList.remove('show');
   if (mode === 'br'){ brFinish(true); return; }
   stats.wins++; saveStats();
+  progAddXp(300); dailyEvent('win:solo', 1);
   var bonus = 250 + comboBest*15;
   grantShards(bonus); grantGems(5); flushWallet();
   var gotCase = Math.random() < 0.5;
@@ -3502,6 +3503,7 @@ function brFinish(youWon){
     BR.place = alive.length;
   }
   var rewardShards = [0, 1000, 450, 260, 150, 90, 70, 50, 40][BR.place] || 40;
+  progAddXp(140 + Math.max(0, 9 - BR.place)*35);
   var rewardGems = BR.place===1 ? 8 : (BR.place===2 ? 4 : (BR.place===3 ? 2 : 0));
   grantShards(rewardShards); if (rewardGems) grantGems(rewardGems);
   flushWallet();
@@ -4408,7 +4410,7 @@ var HUB = {
   camX:0, camY:0, camReady:false, zoom:1,
   viewW:0, viewH:0,
   near:null, glow:0,
-  moveTo:null, enterOn:null,
+  moveTo:null, path:null, enterOn:null,
   keys:{}
 };
 /* Each place is a facade standing on its own bottom edge, with a doorway in
@@ -4433,6 +4435,13 @@ var HUB_TREES = [
   {x:1600,y:1160,r:1.0},{x:220,y:690,r:0.8},{x:2200,y:690,r:0.75},
   {x:760,y:560,r:0.7},{x:1660,y:560,r:0.75}
 ];
+/* Standing water, in the same places every time, which only shows up in a
+   season that rains. It catches whatever light is above it, so the square
+   reads as wet rather than merely having rain drawn over it. */
+var HUB_PUDDLES = [
+  {x:760,y:640,r:74},{x:1640,y:640,r:66},{x:980,y:1180,r:88},{x:1520,y:1140,r:70},
+  {x:420,y:700,r:58},{x:2010,y:700,r:62},{x:1230,y:560,r:54},{x:640,y:1230,r:64}
+];
 var HUB_MOTES = [];
 function hubInitMotes(){
   HUB_MOTES.length = 0;
@@ -4444,7 +4453,7 @@ function hubEnter(){
   HUB.on = true;
   HUB.camReady = false;
   HUB.keys = {};
-  HUB.moveTo = null;
+  HUB.moveTo = null; HUB.path = null;
   if (!HUB_MOTES.length) hubInitMotes();
   paused = true; interactive = false;
   breakCombo();
@@ -4460,6 +4469,7 @@ function syncChrome(){
   if (h) h.hidden = HUB.on || ARC.on;
 }
 function arcAbandon(){
+  ARC.hall = false;
   /* any of the buttons along the top takes you out of a venue */
   if (!ARC.on) return;
   ARC.on = false; ARC.pick = null; ARC.id = null; ARC.g = null; ARC.def = null;
@@ -4492,9 +4502,200 @@ function hubUse(place){
     });
     openShop(); return;
   }
-  /* Hall of Records has nothing to open — its board is read where it stands */
-  toast(SEASON.name + ' · ' + seasonDaysLeft() + 'd left · ' + stats.wins + ' wins · ' +
-    stats.brWins + ' crowns · best combo ×' + stats.bestCombo, 'gold');
+  if (place.id === 'records'){ hallEnter(); return; }
+}
+/* ---------- getting there ----------
+   The plaza never changes, so it is worth solving properly once: a coarse grid
+   of where you can stand, and a shortest path across it. Leaning against a wall
+   and hoping to slide round it works for a tree; it does not work for a
+   building four hundred pixels wide, which is what used to leave you stopped
+   dead in the middle of the square wondering why the click did nothing. */
+var NAV_CELL = 20;
+var HUB_NAV = null;
+function navBuild(){
+  var cols = Math.ceil(HUB.W/NAV_CELL), rows = Math.ceil(HUB.H/NAV_CELL);
+  var raw = new Uint8Array(cols*rows), i;
+  /* Draw the obstacles into the grid rather than sampling the grid against
+     them. Sampling could miss anything smaller than a cell — a tree whose
+     middle fell between four sample points left no mark at all — and cost a
+     hundred-millisecond stutter on the first click. Stamping each obstacle's
+     footprint cannot miss, and is a couple of thousand writes. */
+  function mark(x0, y0, x1, y1){
+    var cx0 = clamp(Math.floor(x0/NAV_CELL), 0, cols-1), cx1 = clamp(Math.floor(x1/NAV_CELL), 0, cols-1);
+    var cy0 = clamp(Math.floor(y0/NAV_CELL), 0, rows-1), cy1 = clamp(Math.floor(y1/NAV_CELL), 0, rows-1);
+    for (var y=cy0;y<=cy1;y++) for (var x=cx0;x<=cx1;x++) raw[y*cols + x] = 1;
+  }
+  for (i=0;i<HUB_PLACES.length;i++){
+    var b = HUB_PLACES[i];
+    mark(b.x - 14, b.y - 10, b.x + b.w + 14, b.y + b.h);
+  }
+  /* A tree is a squashed circle, and blocking its whole bounding box would
+     wall off the open corners around it — nearly a tenth of the square. Mark a
+     cell only where the shape itself reaches into it. */
+  function markEllipse(cx, cy, rr, yk){
+    var ry = rr/yk;
+    var ax0 = clamp(Math.floor((cx - rr)/NAV_CELL), 0, cols-1);
+    var ax1 = clamp(Math.floor((cx + rr)/NAV_CELL), 0, cols-1);
+    var ay0 = clamp(Math.floor((cy - ry)/NAV_CELL), 0, rows-1);
+    var ay1 = clamp(Math.floor((cy + ry)/NAV_CELL), 0, rows-1);
+    for (var y=ay0;y<=ay1;y++) for (var x=ax0;x<=ax1;x++){
+      /* nearest point of this cell to the middle of the shape */
+      var qx = clamp(cx, x*NAV_CELL, x*NAV_CELL + NAV_CELL);
+      var qy = clamp(cy, y*NAV_CELL, y*NAV_CELL + NAV_CELL);
+      var ex = qx - cx, ey = (qy - cy)*yk;
+      if (ex*ex + ey*ey < rr*rr) raw[y*cols + x] = 1;
+    }
+  }
+  for (i=0;i<HUB_TREES.length;i++) markEllipse(HUB_TREES[i].x, HUB_TREES[i].y, 21*HUB_TREES[i].r, 1.7);
+  markEllipse(HUB_FOUNTAIN.x, HUB_FOUNTAIN.y, 96, 1.6);
+  /* everything outside the walkable rectangle */
+  mark(0, 0, HUB.W, 222);
+  mark(0, HUB.H - 80, HUB.W, HUB.H);
+  mark(0, 0, 110, HUB.H);
+  mark(HUB.W - 110, 0, HUB.W, HUB.H);
+
+  /* grow every obstacle by one cell so a route never scrapes along a wall */
+  var pad = new Uint8Array(raw);
+  for (var y2=0;y2<rows;y2++) for (var x2=0;x2<cols;x2++){
+    if (!raw[y2*cols + x2]) continue;
+    for (var dy=-1;dy<=1;dy++) for (var dx=-1;dx<=1;dx++){
+      var nx = x2 + dx, ny = y2 + dy;
+      if (nx >= 0 && ny >= 0 && nx < cols && ny < rows) pad[ny*cols + nx] = 1;
+    }
+  }
+  HUB_NAV = { cols:cols, rows:rows, pad:pad, raw:raw };
+}
+function navIdx(px, py){
+  if (!HUB_NAV) navBuild();
+  var cx = Math.floor(px/NAV_CELL), cy = Math.floor(py/NAV_CELL);
+  if (cx < 0 || cy < 0 || cx >= HUB_NAV.cols || cy >= HUB_NAV.rows) return -1;
+  return cy*HUB_NAV.cols + cx;
+}
+function navXY(i){
+  return { x:(i % HUB_NAV.cols)*NAV_CELL + NAV_CELL/2,
+           y:Math.floor(i / HUB_NAV.cols)*NAV_CELL + NAV_CELL/2 };
+}
+/* Nearest cell you could actually stand in, spiralling outwards. */
+function navFree(i, grid){
+  if (i < 0) return -1;
+  if (!grid[i]) return i;
+  var cols = HUB_NAV.cols, rows = HUB_NAV.rows;
+  var x0 = i % cols, y0 = Math.floor(i / cols);
+  for (var r=1;r<=14;r++){
+    for (var dy=-r;dy<=r;dy++) for (var dx=-r;dx<=r;dx++){
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+      var x = x0 + dx, y = y0 + dy;
+      if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
+      if (!grid[y*cols + x]) return y*cols + x;
+    }
+  }
+  return -1;
+}
+/* Is the straight line between two points clear? Walked cell by cell across
+   the same grid the route was found on, never diagonally between two corners,
+   so nothing can hide between two samples — testing points along the line
+   every few pixels used to step straight over the corner of a building it
+   clipped by two. The cell you start in is skipped, because you may well be
+   standing against a wall, and the cell you finish in is judged on the real
+   obstacles rather than the padded ones, so you can still walk up to a tree. */
+function navClear(ax, ay, bx, by, loose){
+  if (!HUB_NAV) navBuild();
+  var cols = HUB_NAV.cols, rows = HUB_NAV.rows, raw = HUB_NAV.raw;
+  /* Legs of the route keep a cell clear of every wall; the last step onto the
+     spot you actually clicked only has to miss the wall itself. */
+  var pad = loose ? raw : HUB_NAV.pad;
+  var x0 = Math.floor(ax/NAV_CELL), y0 = Math.floor(ay/NAV_CELL);
+  var x1 = Math.floor(bx/NAV_CELL), y1 = Math.floor(by/NAV_CELL);
+  if (x1 < 0 || y1 < 0 || x1 >= cols || y1 >= rows) return false;
+  if (raw[y1*cols + x1]) return false;
+  var dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  var sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  var err = dx - dy, x = x0, y = y0, first = true;
+  for (var step=0; step <= cols + rows + 4; step++){
+    if (x === x1 && y === y1) return true;
+    if (!first){
+      if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
+      if (pad[y*cols + x]) return false;
+    }
+    first = false;
+    var e2 = 2*err;
+    /* one axis per step, so the walk touches every cell the line passes
+       through instead of cutting diagonally across a corner */
+    if (e2 > -dy){ err -= dy; x += sx; }
+    else if (e2 < dx){ err += dx; y += sy; }
+    else return false;
+  }
+  return false;
+}
+var NAV_DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+function navPath(sx, sy, tx, ty){
+  if (!HUB_NAV) navBuild();
+  var cols = HUB_NAV.cols, rows = HUB_NAV.rows, grid = HUB_NAV.pad;
+  var start = navFree(navIdx(sx, sy), grid);
+  var goal  = navFree(navIdx(tx, ty), grid);
+  if (start < 0 || goal < 0) return null;
+  if (start === goal) return [{ x:tx, y:ty }];
+  var prev = new Int32Array(cols*rows); prev.fill(-1);
+  var seen = new Uint8Array(cols*rows);
+  var q = [start], head = 0;
+  seen[start] = 1;
+  var found = false;
+  while (head < q.length){
+    var cur = q[head++];
+    if (cur === goal){ found = true; break; }
+    var cx = cur % cols, cy = (cur / cols)|0;
+    for (var d=0;d<8;d++){
+      var nx = cx + NAV_DIRS[d][0], ny = cy + NAV_DIRS[d][1];
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+      var ni = ny*cols + nx;
+      if (seen[ni] || grid[ni]) continue;
+      /* no squeezing through the diagonal gap between two corners */
+      if (NAV_DIRS[d][0] && NAV_DIRS[d][1] &&
+          (grid[cy*cols + nx] || grid[ny*cols + cx])) continue;
+      seen[ni] = 1; prev[ni] = cur; q.push(ni);
+    }
+  }
+  if (!found) return null;
+  var cells = [];
+  for (var c = goal; c !== -1; c = prev[c]) cells.push(c);
+  cells.reverse();
+  /* string-pull: from where you stand, walk straight at the furthest point on
+     the route you can actually see, and repeat — what is left is the handful
+     of corners a person would really turn at */
+  var pts = cells.map(navXY);
+  /* String-pull: from where you stand, head straight for the furthest cell on
+     the route you can actually see, and repeat. Every cell is a clear cell away
+     from anything solid, so those legs are always safe. */
+  var out = [], from = { x:sx, y:sy }, i = 0;
+  while (i < pts.length){
+    var best = i;
+    for (var k=pts.length-1;k>i;k--){
+      if (navClear(from.x, from.y, pts[k].x, pts[k].y)){ best = k; break; }
+    }
+    out.push(pts[best]);
+    from = pts[best];
+    i = best + 1;
+  }
+  /* The point actually clicked is not safe that way — it can sit right against
+     a tree — so it only joins the route if the last leg can reach it straight.
+     Otherwise the walk ends on the open ground beside whatever was clicked,
+     which is where you wanted to stand anyway. */
+  if (!hubSolid(tx, ty) && navClear(from.x, from.y, tx, ty, true)) out.push({ x:tx, y:ty });
+  return out;
+}
+function hubGoTo(wx, wy){
+  var path = navPath(HUB.x, HUB.y, wx, wy);
+  if (!path || !path.length){
+    /* nowhere to walk to — leave the character where they are rather than
+       sending them to lean on a wall */
+    HUB.path = null; HUB.moveTo = null; HUB.enterOn = null;
+    SFX.invalid();
+    return false;
+  }
+  HUB.path = path;
+  HUB.moveTo = HUB.path.shift();
+  HUB.stuck = 0;
+  return true;
 }
 function hubPointer(p){
   var wx = p.x/HUB.zoom + HUB.camX, wy = p.y/HUB.zoom + HUB.camY;
@@ -4505,12 +4706,11 @@ function hubPointer(p){
   for (var i=0;i<HUB_PLACES.length;i++){
     var b = HUB_PLACES[i], d = hubDoor(b);
     if (wx > b.x - 20 && wx < b.x + b.w + 20 && wy > b.y - 72 && wy < d.y + 104){
-      HUB.moveTo = { x:d.x, y:d.y + 46 };
-      HUB.enterOn = b;
+      if (hubGoTo(d.x, d.y + 46)) HUB.enterOn = b;
       return;
     }
   }
-  HUB.moveTo = { x:wx, y:wy };
+  hubGoTo(wx, wy);
 }
 function hubSolid(px, py){
   for (var i=0;i<HUB_PLACES.length;i++){
@@ -4525,7 +4725,9 @@ function hubSolid(px, py){
   /* the fountain in the middle of the plaza */
   var fx = px - HUB_FOUNTAIN.x, fy = (py - HUB_FOUNTAIN.y)*1.6;
   if (fx*fx + fy*fy < 96*96) return true;
-  return px < 110 || px > HUB.W - 110 || py < 190 || py > HUB.H - 80;
+  /* The top edge stops level with the front row's walls, so there is no strip
+     of pavement up there that looks walkable but has no way into it. */
+  return px < 110 || px > HUB.W - 110 || py < 222 || py > HUB.H - 80;
 }
 /* Which way do we have to step to get round whatever is in front of us?
    Probes both sides at growing offsets and takes the first one that opens up;
@@ -4545,12 +4747,19 @@ function hubUpdate(dt){
   var k = HUB.keys;
   var ax = (k.right ? 1 : 0) - (k.left ? 1 : 0);
   var ay = (k.down ? 1 : 0) - (k.up ? 1 : 0);
-  if (ax || ay){ HUB.moveTo = null; HUB.enterOn = null; }
+  /* taking the keys cancels wherever the click was sending you */
+  if (ax || ay){ HUB.moveTo = null; HUB.path = null; HUB.enterOn = null; }
   if (HUB.moveTo){
     var dx = HUB.moveTo.x - HUB.x, dy = HUB.moveTo.y - HUB.y;
     var d = Math.sqrt(dx*dx + dy*dy);
-    if (d < 8) HUB.moveTo = null;
-    else { ax = dx/d; ay = dy/d; }
+    if (d < 10){
+      HUB.moveTo = (HUB.path && HUB.path.length) ? HUB.path.shift() : null;
+      if (HUB.moveTo){
+        dx = HUB.moveTo.x - HUB.x; dy = HUB.moveTo.y - HUB.y;
+        d = Math.sqrt(dx*dx + dy*dy) || 1;
+        ax = dx/d; ay = dy/d;
+      }
+    } else { ax = dx/d; ay = dy/d; }
   }
   var m = Math.sqrt(ax*ax + ay*ay);
   if (m > 1){ ax /= m; ay /= m; }
@@ -4584,7 +4793,7 @@ function hubUpdate(dt){
   if (HUB.moveTo){
     var prog = Math.abs(HUB.vx) + Math.abs(HUB.vy);
     HUB.stuck = prog < 40 ? (HUB.stuck || 0) + dt : 0;
-    if (HUB.stuck > 1.1){ HUB.moveTo = null; HUB.enterOn = null; HUB.stuck = 0; }
+    if (HUB.stuck > 1.1){ HUB.moveTo = null; HUB.path = null; HUB.enterOn = null; HUB.stuck = 0; }
   } else HUB.stuck = 0;
   var moving = Math.abs(HUB.vx) + Math.abs(HUB.vy) > 18;
   HUB.walk += moving ? dt*Math.min(12, 3 + (Math.abs(HUB.vx)+Math.abs(HUB.vy))*0.028) : 0;
@@ -4624,6 +4833,7 @@ function hubUpdate(dt){
   if (HUB.near !== was){ HUB.glow = 0; if (HUB.near) SFX.hover(); }
   HUB.glow = clamp(HUB.glow + (HUB.near ? dt*4 : -dt*6), 0, 1);
   if (HUB.enterOn && HUB.near === HUB.enterOn && !HUB.moveTo){
+    HUB.path = null;
     var go = HUB.enterOn; HUB.enterOn = null;
     hubUse(go);
     return;
@@ -4634,6 +4844,7 @@ function hubUpdate(dt){
     p.y -= p.sp*dt; p.x += Math.sin(T*0.5 + p.ph)*10*dt;
     if (p.y < 180){ p.y = HUB.H; p.x = rnd(0, HUB.W); }
   }
+  weatherUpdate(dt);
 }
 
 /* ---------- drawing ---------- */
@@ -4919,6 +5130,236 @@ function hubAvatar(c, x, y){
   c.restore();
   c.restore();
 }
+/* ---------- weather ----------
+   The season does not only change what the Market sells and which games pay
+   double — it changes what is falling on the square. Ember drifts sparks up
+   off the stone, Tide rains, Bloom carries petals, Dusk hangs fog. It is the
+   quickest way to make the same plaza feel like a different month. */
+var HUB_WEATHER = { rain:[], drift:[], fog:[], kind:'', wet:0 };
+var WEATHER_BY_SEASON = { s_ember:'ember', s_tide:'rain', s_bloom:'petal', s_dusk:'fog' };
+function weatherKind(){ return WEATHER_BY_SEASON[SEASON.id] || 'fog'; }
+function weatherInit(){
+  var k = weatherKind();
+  HUB_WEATHER.kind = k;
+  HUB_WEATHER.rain.length = 0;
+  HUB_WEATHER.drift.length = 0;
+  HUB_WEATHER.fog.length = 0;
+  HUB_WEATHER.wet = k === 'rain' ? 1 : 0;
+  var n = perfTier >= 2 ? 1 : 0.55;
+  if (k === 'rain') for (var i=0;i<Math.round(150*n);i++)
+    HUB_WEATHER.rain.push({ x:rnd(0,1), y:rnd(0,1), v:rnd(0.9,1.5), len:rnd(12,26) });
+  if (k === 'ember' || k === 'petal') for (var j=0;j<Math.round(46*n);j++)
+    HUB_WEATHER.drift.push({ x:rnd(0,1), y:rnd(0,1), ph:rnd(0,6.28), sp:rnd(0.03,0.1), r:rnd(2.2,4.6), sw:rnd(0.3,1) });
+  /* Fog is the whole weather in Dusk and only a hint of haze otherwise —
+     it used to run at full strength in every season, which is what was
+     costing half the frame rate. */
+  var fogN = k === 'fog' ? Math.round(10*n) : Math.round(3*n);
+  for (var f=0;f<fogN;f++)
+    HUB_WEATHER.fog.push({ x:rnd(0,1), y:rnd(0.3,1), r:rnd(200,420), sp:rnd(0.004,0.016),
+                           a:(k === 'fog' ? rnd(0.05,0.11) : rnd(0.02,0.045)) });
+}
+/* Fog is soft and low-frequency, so it is painted into the light buffer at a
+   third of screen resolution and rides along on the blit that is happening
+   anyway. At full resolution it cost a fifth of the frame. */
+function weatherFog(X, k){
+  var w = HUB_WEATHER, sp = lightSprite('150,160,220');
+  X.globalCompositeOperation = 'lighter';
+  for (var i=0;i<w.fog.length;i++){
+    var f = w.fog[i], r = f.r*k;
+    X.globalAlpha = f.a;
+    X.drawImage(sp, f.x*X.canvas.width - r, f.y*X.canvas.height - r*0.42, r*2, r*0.84);
+  }
+  X.globalAlpha = 1;
+}
+function weatherUpdate(dt){
+  if (HUB_WEATHER.kind !== weatherKind()) weatherInit();
+  var i, w = HUB_WEATHER;
+  for (i=0;i<w.rain.length;i++){
+    var d = w.rain[i];
+    d.y += d.v*dt*1.35; d.x += d.v*dt*0.16;
+    if (d.y > 1.05){ d.y -= 1.1; d.x = rnd(0,1); }
+    if (d.x > 1.05) d.x -= 1.1;
+  }
+  for (i=0;i<w.drift.length;i++){
+    var p = w.drift[i];
+    p.ph += dt*1.4;
+    p.y += (w.kind === 'ember' ? -p.sp : p.sp)*dt*1.4;
+    p.x += Math.sin(p.ph)*0.00035*60*dt*p.sw;
+    if (p.y > 1.06) p.y -= 1.12;
+    if (p.y < -0.06) p.y += 1.12;
+    if (p.x > 1.05) p.x -= 1.1; else if (p.x < -0.05) p.x += 1.1;
+  }
+  for (i=0;i<w.fog.length;i++){
+    var g = w.fog[i];
+    g.x += g.sp*dt;
+    if (g.x > 1.2) g.x -= 1.4;
+  }
+}
+/* Drawn in screen space, over the world but under the lighting, so the rain is
+   lit by the lamps it falls through. */
+function weatherDraw(c){
+  var w = HUB_WEATHER, i;
+  c.save();
+  if (w.rain.length){
+    c.globalCompositeOperation = 'lighter';
+    c.strokeStyle = 'rgba(160,200,255,0.30)';
+    c.lineWidth = 1.2;
+    c.beginPath();
+    for (i=0;i<w.rain.length;i++){
+      var d = w.rain[i], rx = d.x*VW, ry = d.y*VH;
+      c.moveTo(rx, ry); c.lineTo(rx - d.len*0.22, ry + d.len);
+    }
+    c.stroke();
+  }
+  if (w.drift.length){
+    c.globalCompositeOperation = 'lighter';
+    var ember = w.kind === 'ember';
+    for (i=0;i<w.drift.length;i++){
+      var p = w.drift[i], px = p.x*VW, py = p.y*VH;
+      c.globalAlpha = 0.5 + 0.45*Math.abs(Math.sin(p.ph));
+      c.fillStyle = ember ? '#ff9a3c' : '#ffc0e0';
+      if (ember) c.drawImage(lightSprite('255,150,60'), px - p.r*4, py - p.r*4, p.r*8, p.r*8);
+      else {
+        c.save(); c.translate(px, py); c.rotate(p.ph);
+        c.beginPath(); c.ellipse(0, 0, p.r*1.5, p.r*0.7, 0, 0, 6.283); c.fill();
+        c.restore();
+      }
+    }
+    c.globalAlpha = 1;
+  }
+  c.restore();
+}
+/* ---------- night lighting ----------
+   The plaza used to be dim because everything in it was painted dim, which
+   flattens it: dim walls, dim ground, dim everything, no sense of anything
+   actually shining. Now it is painted at full strength and lit in two passes.
+   A sheet of darkness goes over the square with the lights punched out of it,
+   which gives depth without crushing anything to black — a sign in shadow is
+   still a sign. Then the same lights go over again additively, which gives
+   their colour: warm sodium round the lamps, the house colour at each doorway.
+   Both are built at a third of screen resolution; soft gradients need no more. */
+var hubLightCv = document.createElement('canvas');
+var hubLightX = hubLightCv.getContext('2d');
+var HUB_LIGHT_SCALE = 0.34;
+var HUB_DARK = 'rgba(5,6,20,0.72)';
+var hubLightList = [];
+function hubAddLight(x, y, r, col, a, squash){
+  var k = HUB.zoom * (hubLightCv.width / Math.max(1, VW));
+  var sx = (x - HUB.camX)*k, sy = (y - HUB.camY)*k, sr = r*k;
+  if (sr <= 0.5) return;
+  if (sx + sr < 0 || sy + sr*(squash||1) < 0 ||
+      sx - sr > hubLightCv.width || sy - sr*(squash||1) > hubLightCv.height) return;
+  hubLightList.push({ x:sx, y:sy, r:sr, col:col, a:a, sq:squash || 1 });
+}
+/* One soft blob per colour, baked once and stretched to each light. Building a
+   radial gradient for every light on every frame — fifty of them, twice over —
+   was costing half the frame rate on its own. */
+var _lightSprites = {};
+function lightSprite(col){
+  var have = _lightSprites[col];
+  if (have) return have;
+  var cv = document.createElement('canvas');
+  cv.width = cv.height = 128;
+  var x = cv.getContext('2d');
+  var g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  /* a defined core that falls away quickly — a gentle ramp over a wide radius
+     fogs the whole square instead of lighting part of it */
+  cs(g, 0, 'rgba(' + col + ',1)');
+  cs(g, 0.34, 'rgba(' + col + ',0.52)');
+  cs(g, 0.66, 'rgba(' + col + ',0.17)');
+  cs(g, 1, 'rgba(' + col + ',0)');
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  _lightSprites[col] = cv;
+  return cv;
+}
+function hubPaintLights(X, mul, asWhite){
+  for (var i=0;i<hubLightList.length;i++){
+    var L = hubLightList[i];
+    var sp = lightSprite(asWhite ? '255,255,255' : L.col);
+    X.globalAlpha = Math.min(1, L.a*mul);
+    X.drawImage(sp, L.x - L.r, L.y - L.r*L.sq, L.r*2, L.r*2*L.sq);
+  }
+  X.globalAlpha = 1;
+}
+function hubPuddles(c){
+  var w = HUB_WEATHER;
+  if (w.kind !== 'rain') return;
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  for (var i=0;i<HUB_PUDDLES.length;i++){
+    var p = HUB_PUDDLES[i];
+    if (!hubVisible(p.x, p.y, p.r + 40)) continue;
+    /* the sheen, and a ring of ripples going out from where a drop landed */
+    c.globalAlpha = 0.10;
+    c.fillStyle = '#9fd0ff';
+    c.beginPath(); c.ellipse(p.x, p.y, p.r, p.r*0.38, 0, 0, 6.283); c.fill();
+    c.globalAlpha = 0.16;
+    c.strokeStyle = '#cfe6ff'; c.lineWidth = 1.2;
+    for (var k=0;k<3;k++){
+      var ph = (T*0.7 + i*0.37 + k*0.33) % 1;
+      c.globalAlpha = 0.20*(1 - ph);
+      c.beginPath();
+      c.ellipse(p.x, p.y, p.r*ph*0.9, p.r*ph*0.34, 0, 0, 6.283);
+      c.stroke();
+    }
+  }
+  c.restore();
+}
+function hubLightPass(c){
+  /* Lighting stays on at every effect tier — switching it off entirely was a
+     jarring change of look the moment the machine wobbled. A weaker machine
+     gets a coarser light map instead, which nobody can see. */
+  var scale = perfTier <= 0 ? 0.22 : HUB_LIGHT_SCALE;
+  var lw = Math.max(2, Math.round(VW*scale));
+  var lh = Math.max(2, Math.round(VH*scale));
+  if (hubLightCv.width !== lw) hubLightCv.width = lw;
+  if (hubLightCv.height !== lh) hubLightCv.height = lh;
+
+  hubLightList.length = 0;
+  var i;
+  for (i=0;i<HUB_LAMPS.length;i++){
+    var l = HUB_LAMPS[i];
+    /* each lamp breathes on its own clock, so the square never reads as static */
+    var fl = 0.93 + 0.07*Math.sin(T*2.3 + i*2.1) + 0.025*Math.sin(T*11 + i);
+    hubAddLight(l.x, l.y + 4, 225, '255,190,110', 0.95*fl, 0.52);
+    hubAddLight(l.x, l.y - 46, 58, '255,234,196', 1, 1);
+  }
+  for (i=0;i<HUB_PLACES.length;i++){
+    var b = HUB_PLACES[i], d = hubDoor(b);
+    if (!hubVisible(b.x + b.w/2, b.y + b.h/2, Math.max(b.w, b.h) + 320)) continue;
+    var rgb = hexRgb(b.trim);
+    var near = (HUB.near === b) ? HUB.glow : 0;
+    hubAddLight(d.x, d.y + 6, 165 + near*70, rgb, 0.9 + near*0.4, 0.66);
+    hubAddLight(b.x + b.w/2, b.y + b.h*0.40, b.w*0.54, rgb, 0.46, 0.8);
+    /* the sign has to stay readable from across the square */
+    if (perfTier >= 1) hubAddLight(b.x + b.w/2, b.y - 22, b.w*0.44, rgb, 0.7, 0.45);
+  }
+  if (hubVisible(HUB_FOUNTAIN.x, HUB_FOUNTAIN.y, 320))
+    hubAddLight(HUB_FOUNTAIN.x, HUB_FOUNTAIN.y, 195, '120,200,255', 0.82 + 0.06*Math.sin(T*1.7), 0.5);
+  /* you carry a little light of your own, so you are never a silhouette */
+  hubAddLight(HUB.x, HUB.y - 14, 112, '170,150,255', 0.8, 0.72);
+
+  /* One sheet: darkness, the lights punched out of it, then their colour laid
+     back into the holes. It was two buffers and two full-screen blits, and the
+     second blit alone was costing a third of the frame. */
+  var X = hubLightX;
+  X.setTransform(1,0,0,1,0,0);
+  X.globalCompositeOperation = 'source-over';
+  X.clearRect(0, 0, lw, lh);
+  X.fillStyle = HUB_DARK;
+  X.fillRect(0, 0, lw, lh);
+  X.globalCompositeOperation = 'destination-out';
+  hubPaintLights(X, 1, true);
+  X.globalCompositeOperation = 'lighter';
+  hubPaintLights(X, 0.26, false);
+  weatherFog(X, scale);
+  X.globalCompositeOperation = 'source-over';
+
+  c.save();
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.drawImage(hubLightCv, 0, 0, VW, VH);
+  c.restore();
+}
 function hubVisible(x, y, pad){
   pad = pad || 0;
   return x > HUB.camX - pad && x < HUB.camX + HUB.viewW + pad &&
@@ -4931,6 +5372,7 @@ function hubDraw(c){
   c.scale(HUB.zoom, HUB.zoom);
   c.translate(-HUB.camX, -HUB.camY);
   hubGround(c);
+  hubPuddles(c);
   for (var l=0;l<HUB_LAMPS.length;l++) if (hubVisible(HUB_LAMPS[l].x, HUB_LAMPS[l].y, 220)) hubLampPool(c, HUB_LAMPS[l]);
   /* everything that stands on the ground is painted back to front */
   var list = [];
@@ -4956,6 +5398,8 @@ function hubDraw(c){
   }
   c.restore();
   c.restore();
+  weatherDraw(c);
+  hubLightPass(c);
   hubHud(c);
 }
 function hubHud(c){
@@ -4992,6 +5436,23 @@ function hubHud(c){
   c.globalAlpha = 0.65;
   c.fillText('x' + SEASON_BONUS + ' ON ' + feat.join(' · ').toUpperCase(), 22, VH - 36);
   c.fillText(seasonDaysLeft() + ' DAYS LEFT', 22, VH - 22);
+  /* level and the day's three, where you can see them from the square */
+  var lb = progLevelBar();
+  c.font = '600 13px Oswald, sans-serif';
+  c.fillStyle = '#f5c542'; c.globalAlpha = 0.95;
+  c.fillText('LVL ' + PROG.level, 22, VH - 92);
+  c.globalAlpha = 0.25;
+  c.fillStyle = '#ffffff';
+  c.fillRect(70, VH - 97, 120, 7);
+  c.globalAlpha = 0.95;
+  c.fillStyle = '#f5c542';
+  c.fillRect(70, VH - 97, 120*clamp(lb.have/lb.need, 0, 1), 7);
+  c.globalAlpha = 0.6;
+  c.font = '10px IBM Plex Mono, monospace';
+  c.fillStyle = dailyAllDone() ? '#6ff0c8' : '#8a93c4';
+  var set = dailySet(), left = set.length - set.filter(dailyDone).length;
+  c.fillText(dailyAllDone() ? 'DAILIES CLEAR' : left + ' DAILY ' + (left === 1 ? 'TASK' : 'TASKS') + ' LEFT',
+    22, VH - 74);
 
   c.textAlign = 'center';
   c.globalAlpha = 0.6;
@@ -5138,7 +5599,7 @@ function seasonSells(id){
    ============================================================================ */
 var ARC = {
   on:false, id:null, g:null, def:null, pick:null,
-  t:0, btns:[], btnsNext:[], hotBtn:-1, barY:66, top:134,
+  t:0, btns:[], btnsNext:[], hotBtn:-1, barY:66, top:134, hall:false, tab:'progress',
   over:false, overT:0, overWon:false, overMsg:'', overSub:'', paid:0
 };
 var ARC_GAMES = {};
@@ -5163,7 +5624,8 @@ function arcSaveBest(id, v){
 
 /* ---------- entering and leaving ---------- */
 function arcEnter(cat){
-  HUB.on = false; HUB.keys = {}; HUB.moveTo = null; HUB.enterOn = null;
+  ARC.hall = false;
+  HUB.on = false; HUB.keys = {}; HUB.moveTo = null; HUB.path = null; HUB.enterOn = null;
   document.getElementById('btn-hub').classList.remove('accent');
   ARC.on = true; ARC.pick = cat; ARC.id = null; ARC.g = null; ARC.def = null;
   ARC.btns = []; ARC.over = false;
@@ -5175,6 +5637,15 @@ function arcEnter(cat){
 function arcStart(id){
   var d = ARC_GAMES[id];
   if (!d) return;
+  /* The venue list greys out a table you cannot afford, but Play Again does
+     not go through the list — without this it would take the last of your
+     shards and seat you anyway. */
+  if (d.cost && wallet.shards < d.cost){
+    SFX.invalid();
+    toast('Need ' + d.cost + ' ◈ for that table — you have ' + wallet.shards, 'bad');
+    arcQuit();
+    return;
+  }
   ARC.pick = null; ARC.id = id; ARC.def = d;
   ARC.g = {}; ARC.t = 0;
   ARC.over = false; ARC.overT = 0; ARC.paid = 0;
@@ -5187,6 +5658,7 @@ function arcStart(id){
   toast(d.name + (seasonFeatures(id) ? '  ·  season pick, x' + SEASON_BONUS + ' shards' : ''), seasonFeatures(id) ? 'gold' : 'good');
 }
 function arcQuit(){
+  ARC.hall = false;
   /* back to the venue's game list */
   ARC.id = null; ARC.g = null; ARC.over = false;
   ARC.pick = ARC.def ? ARC.def.cat : 'card';
@@ -5194,6 +5666,7 @@ function arcQuit(){
   SFX.flip();
 }
 function arcExit(){
+  ARC.hall = false;
   /* back out to the plaza */
   ARC.on = false; ARC.pick = null; ARC.id = null; ARC.g = null; ARC.def = null;
   ARC.btns = []; ARC.over = false;
@@ -5215,6 +5688,12 @@ function arcEnd(won, msg, sub, shards, score){
   }
   if (won){ SFX.win(); flash = 0.55; flashCol = '#f5c542'; doShake(12); }
   else SFX.elim();
+  /* a run always teaches you something, even a losing one */
+  progAddXp(Math.max(12, Math.round(pay*0.28) + (won ? 90 : 0)));
+  var def = ARC_GAMES[ARC.id];
+  if (def) dailyEvent('play:' + def.cat, 1);
+  if (won) dailyEvent('win:' + ARC.id, 1);
+  if (score != null) dailyEvent('score:' + ARC.id, score);
 }
 
 /* ---------- immediate-mode chrome ---------- */
@@ -5283,21 +5762,133 @@ function arcText(c, str, x, y, size, col, font, align){
 function arcUpdate(dt){
   if (!ARC.on) return;
   ARC.t += dt;
-  if (ARC.pick) return;
+  if (ARC.hall || ARC.pick) return;
   if (!ARC.def) return;
   if (ARC.over){ ARC.overT += dt; return; }
   if (ARC.def.update) ARC.def.update(ARC.g, dt);
 }
+/* ---------- the rooms ----------
+   A venue used to be your table felt with a flat sheet of black over it, which
+   made all ten games look like the same dialog. Each category now gets a room
+   built around the play area: the Card Room a rail of polished wood under an
+   overhead lamp, the Arcade a neon cabinet with the floor receding away under
+   it, the Coliseum stone walls and torches. The felt still shows through in
+   the middle, because that is the cosmetic you paid for. It is baked to a
+   sprite and redrawn only when the window changes size. */
+var _arcRoom = { key:'', cv:null };
+function arcRoomSprite(cat){
+  var key = cat + '|' + Math.round(VW) + 'x' + Math.round(VH) + '|' + Math.round(ARC.top);
+  if (_arcRoom.key === key) return _arcRoom.cv;
+  var cv = _arcRoom.cv && _arcRoom.cv.width === Math.round(VW) && _arcRoom.cv.height === Math.round(VH)
+    ? _arcRoom.cv : document.createElement('canvas');
+  cv.width = Math.round(VW); cv.height = Math.round(VH);
+  var c = cv.getContext('2d');
+  c.clearRect(0, 0, VW, VH);
+  /* The frame is built outwards from the play area rather than inwards from
+     the window, so nothing a game draws can end up sitting on the woodwork. */
+  var inset = 26;
+  var iT = ARC.top - 8, iB = VH - 20, iL = 14 + inset, iR = VW - 14 - inset;
+  var box = { t:iT, b:iB, l:iL, r:iR, o:inset };
+  if (cat === 'card') arcRoomCard(c, box);
+  else if (cat === 'puzzle') arcRoomArcade(c, box);
+  else arcRoomColiseum(c, box);
+  _arcRoom.key = key; _arcRoom.cv = cv;
+  return cv;
+}
+function arcRoomHollow(c, k, grad, radius){
+  var g = c.createLinearGradient(0, 0, 0, VH);
+  cs(g, 0, grad[0]); cs(g, 0.5, grad[1]); cs(g, 1, grad[2]);
+  c.fillStyle = g; c.fillRect(0, 0, VW, VH);
+  c.save();
+  c.globalCompositeOperation = 'destination-out';
+  rrpath(c, k.l, k.t, k.r - k.l, k.b - k.t, radius); c.fill();
+  c.restore();
+}
+function arcRoomCard(c, k){
+  arcRoomHollow(c, k, ['rgba(10,7,18,0.94)', 'rgba(8,6,16,0.74)', 'rgba(6,4,12,0.96)'], 22);
+  /* the rail: polished wood, lit from above */
+  var wg = c.createLinearGradient(0, k.t - k.o, 0, k.t + k.o);
+  cs(wg, 0, '#4e3119'); cs(wg, 0.5, '#8a5c32'); cs(wg, 1, '#33200f');
+  c.strokeStyle = wg; c.lineWidth = k.o;
+  rrpath(c, k.l - k.o/2, k.t - k.o/2, (k.r - k.l) + k.o, (k.b - k.t) + k.o, 26); c.stroke();
+  c.strokeStyle = 'rgba(245,205,140,0.32)'; c.lineWidth = 2;
+  rrpath(c, k.l, k.t, k.r - k.l, k.b - k.t, 22); c.stroke();
+  c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 2;
+  rrpath(c, k.l - k.o, k.t - k.o, (k.r - k.l) + k.o*2, (k.b - k.t) + k.o*2, 30); c.stroke();
+  /* brass studs along the rail */
+  c.fillStyle = 'rgba(232,196,120,0.5)';
+  for (var x = k.l + 24; x < k.r - 12; x += 56){
+    c.beginPath(); c.arc(x, k.t - k.o/2, 2.6, 0, 6.283); c.fill();
+    c.beginPath(); c.arc(x, k.b + k.o/2, 2.6, 0, 6.283); c.fill();
+  }
+  /* one lamp hanging over the middle of the table */
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  var lg = c.createRadialGradient(VW/2, k.t + 30, 0, VW/2, k.t + 30, VH*0.82);
+  cs(lg, 0, 'rgba(255,226,170,0.17)'); cs(lg, 0.5, 'rgba(255,210,150,0.055)'); cs(lg, 1, 'rgba(0,0,0,0)');
+  c.fillStyle = lg; c.fillRect(0, 0, VW, VH);
+  c.restore();
+}
+function arcRoomArcade(c, k){
+  arcRoomHollow(c, k, ['rgba(4,10,14,0.95)', 'rgba(4,10,14,0.72)', 'rgba(2,6,10,0.97)'], 14);
+  /* a floor of neon lines running away under the cabinet */
+  c.save();
+  c.beginPath(); c.rect(0, k.b + k.o, VW, VH - k.b - k.o); c.clip();
+  c.strokeStyle = 'rgba(111,240,200,0.18)'; c.lineWidth = 1.5;
+  c.beginPath();
+  for (var i=-12;i<=12;i++){ c.moveTo(VW/2 + i*30, k.b + k.o); c.lineTo(VW/2 + i*260, VH + 60); }
+  for (var r=1;r<=4;r++){ var yy = k.b + k.o + Math.pow(r/4, 1.9)*(VH - k.b - k.o); c.moveTo(0, yy); c.lineTo(VW, yy); }
+  c.stroke();
+  c.restore();
+  /* neon tube round the screen */
+  c.strokeStyle = 'rgba(111,240,200,0.16)'; c.lineWidth = 14;
+  rrpath(c, k.l, k.t, k.r - k.l, k.b - k.t, 14); c.stroke();
+  c.strokeStyle = 'rgba(111,240,200,0.8)'; c.lineWidth = 3;
+  rrpath(c, k.l, k.t, k.r - k.l, k.b - k.t, 14); c.stroke();
+  c.strokeStyle = 'rgba(160,255,230,0.42)'; c.lineWidth = 1;
+  rrpath(c, k.l - k.o + 6, k.t - k.o + 6, (k.r - k.l) + (k.o - 6)*2, (k.b - k.t) + (k.o - 6)*2, 20); c.stroke();
+  /* scanlines across the glass */
+  c.save();
+  c.beginPath(); rrpath(c, k.l, k.t, k.r - k.l, k.b - k.t, 14); c.clip();
+  c.fillStyle = 'rgba(0,0,0,0.18)';
+  for (var y = k.t; y < k.b; y += 4) c.fillRect(k.l, y, k.r - k.l, 1.5);
+  c.restore();
+}
+function arcRoomColiseum(c, k){
+  arcRoomHollow(c, k, ['rgba(14,6,12,0.95)', 'rgba(12,6,12,0.72)', 'rgba(8,4,8,0.97)'], 10);
+  /* dressed stone round the floor */
+  c.strokeStyle = 'rgba(126,100,116,0.34)'; c.lineWidth = 1.3;
+  var bw = 70, i;
+  for (i=0;i*bw < (k.r - k.l) + bw*2; i++){
+    c.strokeRect(k.l - k.o + i*bw, k.t - k.o + 2, bw, k.o - 4);
+    c.strokeRect(k.l - k.o + i*bw + (i%2 ? bw/2 : 0) - bw/2, k.b + 2, bw, k.o - 4);
+  }
+  for (i=0;i*bw < (k.b - k.t) + bw*2; i++){
+    c.strokeRect(k.l - k.o + 2, k.t - k.o + i*bw, k.o - 4, bw);
+    c.strokeRect(k.r + 2, k.t - k.o + i*bw + (i%2 ? bw/2 : 0), k.o - 4, bw);
+  }
+  c.strokeStyle = 'rgba(255,154,213,0.5)'; c.lineWidth = 2;
+  rrpath(c, k.l, k.t, k.r - k.l, k.b - k.t, 10); c.stroke();
+  /* torches at the four corners */
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  var pts = [[k.l + 26, k.t + 26], [k.r - 26, k.t + 26], [k.l + 26, k.b - 26], [k.r - 26, k.b - 26]];
+  for (var t=0;t<4;t++){
+    var tg = c.createRadialGradient(pts[t][0], pts[t][1], 0, pts[t][0], pts[t][1], 230);
+    cs(tg, 0, 'rgba(255,150,80,0.22)'); cs(tg, 1, 'rgba(0,0,0,0)');
+    c.fillStyle = tg;
+    c.beginPath(); c.arc(pts[t][0], pts[t][1], 230, 0, 6.283); c.fill();
+  }
+  c.restore();
+}
 function arcDraw(c){
   drawBG(c);
-  c.save();
-  c.fillStyle = 'rgba(4,3,12,0.62)'; c.fillRect(0, 0, VW, VH);
-  c.restore();
   /* Everything a venue draws lives under the page's own button bar, which is
      real DOM sitting on top of the canvas — anything drawn up there would be
      unclickable. */
   ARC.barY = uiTopH + 10;
-  ARC.top = ARC.barY + 68;
+  ARC.top = ARC.barY + 90;
+  c.drawImage(arcRoomSprite(ARC.hall ? 'card' : (ARC.pick || (ARC.def ? ARC.def.cat : 'card'))), 0, 0);
   ARC.btnsNext = [];
   /* find the button under the cursor so it can light up */
   ARC.hotBtn = -1;
@@ -5305,7 +5896,8 @@ function arcDraw(c){
     var b = ARC.btns[i];
     if (!b.dis && rectHit(cur.x, cur.y, b.x, b.y, b.w, b.h)){ ARC.hotBtn = i; break; }
   }
-  if (ARC.pick) arcDrawPicker(c);
+  if (ARC.hall) arcDrawHall(c);
+  else if (ARC.pick) arcDrawPicker(c);
   else if (ARC.def){
     try { ARC.def.draw(ARC.g, c); } catch(e){ arcText(c, 'draw error', VW/2, VH/2, 20, '#ff6b8a'); }
     arcDrawFrame(c);
@@ -5352,7 +5944,10 @@ function arcDrawOver(c){
   if (ARC.overSub) arcText(c, ARC.overSub, VW/2, y + 84, 13, 'rgba(200,212,240,0.75)', 'mono');
   arcText(c, ARC.paid > 0 ? '+' + ARC.paid + ' ◈' : 'no shards this run', VW/2, y + 122, ARC.paid > 0 ? 26 : 15,
     ARC.paid > 0 ? '#f5c542' : 'rgba(200,212,240,0.5)', ARC.paid > 0 ? 'oswald' : 'mono');
-  arcButton(c, x + 26, y + h - 62, (w - 78)/2, 42, 'PLAY AGAIN', '#6ff0c8', function(){ arcStart(ARC.id); });
+  var again = ARC_GAMES[ARC.id];
+  var broke = again && again.cost && wallet.shards < again.cost;
+  arcButton(c, x + 26, y + h - 62, (w - 78)/2, 42, broke ? 'NOT ENOUGH ◈' : 'PLAY AGAIN', '#6ff0c8',
+    function(){ arcStart(ARC.id); }, broke);
   arcButton(c, x + w/2 + 13, y + h - 62, (w - 78)/2, 42, 'LEAVE', '#bfa5ff', arcQuit);
   c.restore();
 }
@@ -5454,9 +6049,9 @@ function arcDown(p){
 function arcMove(p){ cur.tx = p.x; cur.ty = p.y; }
 function arcUp(){ cur.down = false; }
 function arcKey(k, e){
-  if (k === 'escape'){ e.preventDefault(); if (ARC.pick) arcExit(); else arcQuit(); return; }
+  if (k === 'escape'){ e.preventDefault(); if (ARC.hall || ARC.pick) arcExit(); else arcQuit(); return; }
   if (k === 'm'){ toggleSound(); return; }
-  if (ARC.pick || !ARC.def) return;
+  if (ARC.hall || ARC.pick || !ARC.def) return;
   if (ARC.over){
     if (k === 'enter' || k === ' '){ e.preventDefault(); arcStart(ARC.id); }
     return;
@@ -5523,7 +6118,7 @@ arcDef({
 });
 function fcLay(g){
   var topY = ARC.top;
-  var cw = Math.min(VW/9.6, (VH - topY - 70)/6.4/1.4, 104);
+  var cw = Math.min(VW/9.6, (VH - topY - 96)/6.4/1.4, 126);
   var ch = cw*1.4, gap = cw*0.14;
   var totalW = cw*8 + gap*7;
   var x0 = (VW - totalW)/2;
@@ -5682,9 +6277,9 @@ function fcDraw(g, c){
         arcGlowRect(c, cx, y, L.cw, L.ch, '#6ff0c8', 0.8);
     }
   }
-  arcText(c, arcClock(arcSecs(g)) + '   ' + g.moves + ' MOVES', VW/2, VH - 24, 13, 'rgba(200,212,240,0.65)', 'mono');
+  arcText(c, arcClock(arcSecs(g)) + '   ' + g.moves + ' MOVES', VW/2, VH - 42, 13, 'rgba(200,212,240,0.65)', 'mono');
   arcText(c, g.sel ? 'CLICK WHERE IT GOES' : (arcNarrow() ? 'TAP A CARD, THEN ITS DESTINATION' : 'CLICK A CARD, THEN ITS DESTINATION  ·  A SENDS EVERYTHING SAFE HOME'),
-    VW/2, VH - 46, 11, 'rgba(159,208,255,0.5)', 'mono');
+    VW/2, VH - 62, 11, 'rgba(159,208,255,0.5)', 'mono');
 }
 
 /* ----------------------------------------------------------------- PYRAMID */
@@ -7122,6 +7717,293 @@ function m3Draw(g, c){
   c.restore();
   arcText(c, g.score + ' PTS   ·   ' + Math.ceil(g.time) + 'S',
     VW/2, L.y0 + L.s*g.N + 48, 16, g.time < 15 ? '#ff6b8a' : '#c08cff', 'mono');
+}
+
+/* ============================================================================
+   PROGRESSION
+   Three things sit on top of the games: a level that only ever goes up, three
+   challenges that change at midnight, and a season track that empties and
+   refills every twenty-eight days. All of it is worked out from the date and
+   what you have done, so none of it needs a server.
+   ============================================================================ */
+var PROG = lsGet('astral.prog', null);
+if (!PROG || typeof PROG !== 'object') PROG = {};
+if (typeof PROG.xp !== 'number') PROG.xp = 0;
+if (typeof PROG.level !== 'number') PROG.level = 1;
+if (typeof PROG.seasonXp !== 'number') PROG.seasonXp = 0;
+if (typeof PROG.seasonId !== 'string') PROG.seasonId = SEASON.id;
+if (!Array.isArray(PROG.claimed)) PROG.claimed = [];
+if (!PROG.daily || typeof PROG.daily !== 'object') PROG.daily = { date:'', prog:{}, paid:[] };
+function progSave(){ lsSet('astral.prog', PROG); }
+
+function xpForLevel(n){ return 400 + n*260; }
+function progLevelBar(){ return { have:PROG.xp, need:xpForLevel(PROG.level) }; }
+
+/* A level is worth shards every time, gems on every third, a crate on every
+   fifth — enough that the bar filling is its own small event. */
+function progLevelUp(){
+  PROG.level++;
+  var shards = 120 + PROG.level*40;
+  grantShards(shards);
+  var gems = PROG.level % 3 === 0 ? 3 : 0;
+  if (gems) grantGems(gems);
+  var crate = PROG.level % 5 === 0;
+  if (crate){ pendingCases++; savePending(); updatePendingBadge(); }
+  flushWallet(); refreshWalletUI();
+  bannerText('LEVEL ' + PROG.level, '#f5c542');
+  toast('Level ' + PROG.level + '  ·  +' + shards + ' ◈' + (gems ? '  +' + gems + ' ✦' : '') +
+    (crate ? '  +1 Case' : ''), 'gold');
+  SFX.complete();
+  confetti(VW/2, VH*0.4, 40, ['#f5c542', '#bfa5ff', '#6ff0c8']);
+}
+function progAddXp(n){
+  if (!(n > 0)) return;
+  n = Math.round(n);
+  PROG.xp += n;
+  /* the season track resets with the season, the level never does */
+  if (PROG.seasonId !== SEASON.id){ PROG.seasonId = SEASON.id; PROG.seasonXp = 0; PROG.claimed = []; }
+  PROG.seasonXp += n;
+  while (PROG.xp >= xpForLevel(PROG.level)){
+    PROG.xp -= xpForLevel(PROG.level);
+    progLevelUp();
+  }
+  progSave();
+}
+
+/* ---------- the season track ---------- */
+var TRACK_STEP = 420;
+var TRACK_TIERS = 10;
+function trackTier(){ return clamp(Math.floor(PROG.seasonXp / TRACK_STEP), 0, TRACK_TIERS); }
+function trackReward(i){
+  /* i is 1-based; the last tier is the season's own skin */
+  if (i === TRACK_TIERS) return { kind:'skin', label:'Season skin' };
+  if (i % 5 === 0) return { kind:'gems', n:12, label:'12 ✦' };
+  if (i % 3 === 0) return { kind:'case', n:1, label:'1 Case' };
+  return { kind:'shards', n:200 + i*90, label:(200 + i*90) + ' ◈' };
+}
+function seasonSkinId(){
+  for (var k in CATALOG) if (CATALOG[k].season === SEASON.id) return k;
+  return null;
+}
+function trackClaim(i){
+  if (i > trackTier() || PROG.claimed.indexOf(i) >= 0) return;
+  var r = trackReward(i);
+  PROG.claimed.push(i);
+  if (r.kind === 'shards'){ grantShards(r.n); flushWallet(); refreshWalletUI(); }
+  else if (r.kind === 'gems') grantGems(r.n);
+  else if (r.kind === 'case'){ pendingCases += r.n; savePending(); updatePendingBadge(); }
+  else {
+    var id = seasonSkinId();
+    if (id && !owns(id)){ inv.push(id); saveInv(); toast(CATALOG[id].name + ' unlocked', 'gold'); }
+    else { grantShards(900); flushWallet(); refreshWalletUI(); toast('Already owned — 900 ◈ instead', 'gold'); }
+  }
+  if (r.kind !== 'skin') toast('Tier ' + i + '  ·  ' + r.label, 'gold');
+  SFX.foundation();
+  shardBurst(VW/2, VH*0.5, '#f5c542', 30);
+  progSave();
+}
+
+/* ---------- daily challenges ----------
+   Picked from the date, so everyone playing on the same day gets the same
+   three and nothing has to be stored but your progress against them. */
+var DAILY_POOL = [
+  { id:'win_freecell', text:'Win a game of Freecell',        goal:1, xp:220, shards:260, ev:'win:freecell' },
+  { id:'win_pyramid',  text:'Clear a Pyramid',               goal:1, xp:200, shards:240, ev:'win:pyramid' },
+  { id:'win_mines',    text:'Clear the minefield',           goal:1, xp:240, shards:280, ev:'win:mines' },
+  { id:'win_sudoku',   text:'Finish a Sudoku',               goal:1, xp:240, shards:280, ev:'win:sudoku' },
+  { id:'win_slide',    text:'Solve the slide puzzle',        goal:1, xp:180, shards:200, ev:'win:slide' },
+  { id:'play_card',    text:'Play 3 games in the Card Room', goal:3, xp:180, shards:200, ev:'play:card' },
+  { id:'play_puzzle',  text:'Play 3 games in the Arcade',    goal:3, xp:180, shards:200, ev:'play:puzzle' },
+  { id:'play_versus',  text:'Play 3 duels in the Coliseum',  goal:3, xp:180, shards:200, ev:'play:versus' },
+  { id:'score_match3', text:'Score 1200 in Prism Break',     goal:1200, xp:260, shards:300, ev:'score:match3' },
+  { id:'score_tron',   text:'Reach 90 lengths on a cycle',   goal:90, xp:260, shards:300, ev:'score:tron' },
+  { id:'score_dice',   text:'Score 140 at Dice Royale',      goal:140, xp:240, shards:280, ev:'score:dice' },
+  { id:'win_solo',     text:'Solve a game of Klondike',      goal:1, xp:260, shards:300, ev:'win:solo' }
+];
+function todayKey(){
+  var d = new Date();
+  return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+}
+function dailySet(){
+  var key = todayKey();
+  if (PROG.daily.date !== key){
+    PROG.daily = { date:key, prog:{}, paid:[] };
+    progSave();
+  }
+  /* the same three for everyone, every day, straight out of the date */
+  var seed = 0;
+  for (var i=0;i<key.length;i++) seed = (seed*31 + key.charCodeAt(i)) & 0x7fffffff;
+  var rng = mulberry(seed);
+  var pool = DAILY_POOL.slice();
+  for (var j=pool.length-1;j>0;j--){ var k = (rng()*(j+1))|0; var t = pool[j]; pool[j] = pool[k]; pool[k] = t; }
+  return pool.slice(0, 3);
+}
+function dailyDone(d){ return (PROG.daily.prog[d.id] || 0) >= d.goal; }
+function dailyAllDone(){
+  var set = dailySet();
+  for (var i=0;i<set.length;i++) if (!dailyDone(set[i])) return false;
+  return true;
+}
+/* Games report what happened; only the three live today are listened to. */
+function dailyEvent(ev, value){
+  var set = dailySet(), changed = false;
+  for (var i=0;i<set.length;i++){
+    var d = set[i];
+    if (d.ev !== ev) continue;
+    var was = PROG.daily.prog[d.id] || 0;
+    if (was >= d.goal) continue;
+    var now = ev.indexOf('score:') === 0 ? Math.max(was, value || 0) : was + (value || 1);
+    PROG.daily.prog[d.id] = now;
+    changed = true;
+    if (now >= d.goal && PROG.daily.paid.indexOf(d.id) < 0){
+      PROG.daily.paid.push(d.id);
+      grantShards(d.shards); flushWallet(); refreshWalletUI();
+      progAddXp(d.xp);
+      toast('Daily done · ' + d.text + '  +' + d.shards + ' ◈  +' + d.xp + ' XP', 'gold');
+      SFX.foundation();
+      shardBurst(VW/2, VH*0.45, '#f5c542', d.shards);
+      if (dailyAllDone() && PROG.daily.paid.indexOf('__all') < 0){
+        PROG.daily.paid.push('__all');
+        pendingCases++; savePending(); updatePendingBadge();
+        toast('All three dailies — +1 Case', 'gold');
+        bannerText('DAILIES CLEAR', '#6ff0c8');
+      }
+    }
+  }
+  if (changed) progSave();
+}
+
+/* ---------- the Hall of Records ----------
+   The eighth doorway used to print a line of statistics as a toast and leave
+   you standing in the square. It is a room now: what you have done, what the
+   day is asking of you, and how far along the season you are. */
+function hallEnter(){
+  HUB.on = false; HUB.keys = {}; HUB.moveTo = null; HUB.path = null; HUB.enterOn = null;
+  document.getElementById('btn-hub').classList.remove('accent');
+  ARC.on = true; ARC.hall = true; ARC.tab = ARC.tab || 'progress';
+  ARC.pick = null; ARC.id = null; ARC.g = null; ARC.def = null;
+  ARC.btns = []; ARC.over = false;
+  paused = true; interactive = false;
+  perfSamples.length = 0;
+  syncChrome();
+  SFX.flip();
+}
+function hallBar(c, x, y, w, h, frac, col, bg){
+  arcPanel(c, x, y, w, h, bg || 'rgba(255,255,255,0.07)', null, h/2);
+  if (frac > 0){
+    c.save();
+    c.fillStyle = col;
+    rrpath(c, x, y, Math.max(h, w*clamp(frac, 0, 1)), h, h/2); c.fill();
+    c.restore();
+  }
+}
+function arcDrawHall(c){
+  var W = Math.min(920, VW - 60), x0 = VW/2 - W/2;
+  var y = ARC.top + 4;
+  arcText(c, 'Hall of Records', VW/2, y + 10, Math.min(30, VW*0.045), '#5dff9b', 'cinzel');
+  y += 38;
+  /* tabs */
+  var tw = Math.min(170, W/2 - 8);
+  arcButton(c, VW/2 - tw - 6, y, tw, 34, 'PROGRESS', ARC.tab === 'progress' ? '#5dff9b' : '#7f8aa8',
+    function(){ ARC.tab = 'progress'; });
+  arcButton(c, VW/2 + 6, y, tw, 34, 'RECORDS', ARC.tab === 'records' ? '#5dff9b' : '#7f8aa8',
+    function(){ ARC.tab = 'records'; });
+  y += 50;
+  if (ARC.tab === 'records') hallRecords(c, x0, y, W);
+  else hallProgress(c, x0, y, W);
+  /* nothing to back out to in here, so one way out is enough */
+  arcButton(c, VW - 152, ARC.barY + 10, 136, 34, 'BACK TO HUB', '#bfa5ff', arcExit);
+}
+function hallProgress(c, x0, y, W){
+  /* level */
+  var bar = progLevelBar();
+  arcText(c, 'LEVEL ' + PROG.level, x0, y, 18, '#f5c542', 'oswald', 'left');
+  arcText(c, bar.have + ' / ' + bar.need + ' XP', x0 + W, y, 12, 'rgba(200,212,240,0.7)', 'mono', 'right');
+  hallBar(c, x0, y + 14, W, 12, bar.have/bar.need, '#f5c542');
+  y += 48;
+
+  /* the day's three */
+  var set = dailySet();
+  arcText(c, "TODAY'S THREE", x0, y, 13, '#6ff0c8', 'mono', 'left');
+  arcText(c, dailyAllDone() ? 'ALL DONE' : (set.length - set.filter(dailyDone).length) + ' LEFT',
+    x0 + W, y, 12, dailyAllDone() ? '#6ff0c8' : 'rgba(200,212,240,0.55)', 'mono', 'right');
+  y += 16;
+  for (var i=0;i<set.length;i++){
+    var d = set[i], have = PROG.daily.prog[d.id] || 0, done = have >= d.goal;
+    var rh = 42;
+    arcPanel(c, x0, y, W, rh, done ? 'rgba(111,240,200,0.10)' : 'rgba(8,7,20,0.62)',
+      done ? 'rgba(111,240,200,0.45)' : 'rgba(140,152,190,0.22)', 9);
+    arcText(c, (done ? '✔  ' : '') + d.text, x0 + 14, y + 15, 14,
+      done ? '#6ff0c8' : '#e6ecff', 'oswald', 'left');
+    arcText(c, '+' + d.shards + ' ◈   +' + d.xp + ' XP', x0 + W - 14, y + 15, 11,
+      'rgba(245,197,66,0.8)', 'mono', 'right');
+    hallBar(c, x0 + 14, y + 27, W - 28, 7, have/d.goal, done ? '#6ff0c8' : '#9fd0ff');
+    if (!done) arcText(c, Math.min(have, d.goal) + ' / ' + d.goal, x0 + W - 14, y + 34, 10,
+      'rgba(200,212,240,0.5)', 'mono', 'right');
+    y += rh + 8;
+  }
+  arcText(c, 'ALL THREE IN A DAY PAYS A CRATE  ·  THEY CHANGE AT MIDNIGHT',
+    VW/2, y + 4, 10, 'rgba(200,212,240,0.4)', 'mono');
+  y += 26;
+
+  /* season track */
+  var tier = trackTier();
+  arcText(c, SEASON.name.toUpperCase() + '  ·  TIER ' + tier + '/' + TRACK_TIERS,
+    x0, y, 13, SEASON.accent, 'mono', 'left');
+  arcText(c, seasonDaysLeft() + ' DAYS LEFT', x0 + W, y, 11, 'rgba(200,212,240,0.55)', 'mono', 'right');
+  y += 14;
+  var pw = (W - 9*6)/10, py = y + 6;
+  for (var t=1;t<=TRACK_TIERS;t++){
+    (function(ti, px){
+      var got = PROG.claimed.indexOf(ti) >= 0;
+      var ready = ti <= tier && !got;
+      var r = trackReward(ti);
+      var col = got ? '#4b5570' : (ready ? '#f5c542' : (ti <= tier ? SEASON.accent : '#5a6078'));
+      arcPanel(c, px, py, pw, 54, ready ? 'rgba(245,197,66,0.16)' : 'rgba(8,7,20,0.62)',
+        'rgba(' + hexRgb(col) + ',' + (ready ? 0.9 : 0.35) + ')', 8);
+      arcText(c, String(ti), px + pw/2, py + 14, 12, col, 'mono');
+      arcText(c, r.kind === 'skin' ? 'SKIN' : r.label.replace(' ', ''), px + pw/2, py + 33, 10,
+        got ? 'rgba(200,212,240,0.35)' : col, 'mono');
+      if (got) arcText(c, '✔', px + pw/2, py + 46, 10, 'rgba(111,240,200,0.7)', 'mono');
+      if (ready) ARC.btnsNext.push({ x:px, y:py, w:pw, h:54, fn:function(){ trackClaim(ti); }, dis:false });
+    })(t, x0 + (t-1)*(pw + 6));
+  }
+  py += 62;
+  var nextAt = Math.min(TRACK_TIERS, tier + 1)*TRACK_STEP;
+  hallBar(c, x0, py, W, 9, tier >= TRACK_TIERS ? 1 : (PROG.seasonXp % TRACK_STEP)/TRACK_STEP, SEASON.accent);
+  arcText(c, tier >= TRACK_TIERS ? 'TRACK COMPLETE'
+    : PROG.seasonXp + ' / ' + nextAt + ' SEASON XP', VW/2, py + 22, 11, 'rgba(200,212,240,0.6)', 'mono');
+}
+function hallRecords(c, x0, y, W){
+  arcText(c, 'THE TABLE', x0, y, 13, '#bfa5ff', 'mono', 'left');
+  y += 18;
+  var rows = [
+    ['Klondike solved', stats.wins],
+    ['Battle royale crowns', stats.brWins],
+    ['Best combo', '×' + stats.bestCombo],
+    ['Crates opened', stats.opened]
+  ];
+  for (var i=0;i<rows.length;i++){
+    c.fillStyle = i % 2 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.18)';
+    c.fillRect(x0, y, W, 24);
+    arcText(c, rows[i][0], x0 + 12, y + 12, 13, 'rgba(200,212,240,0.8)', 'mono', 'left');
+    arcText(c, String(rows[i][1]), x0 + W - 12, y + 12, 13, '#e6ecff', 'mono', 'right');
+    y += 24;
+  }
+  y += 18;
+  arcText(c, 'THE VENUES', x0, y, 13, '#bfa5ff', 'mono', 'left');
+  y += 18;
+  var colW = W/2 - 10;
+  for (var g=0;g<ARC_LIST.length;g++){
+    var d = ARC_LIST[g];
+    var cx = x0 + (g % 2)*(colW + 20), cy = y + Math.floor(g/2)*26;
+    var best = d.scoreLabel ? d.scoreLabel(arcBest(d.id)) : null;
+    c.fillStyle = (Math.floor(g/2)) % 2 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.18)';
+    c.fillRect(cx, cy, colW, 24);
+    arcText(c, d.name, cx + 12, cy + 12, 12, seasonFeatures(d.id) ? '#f5c542' : 'rgba(200,212,240,0.8)', 'mono', 'left');
+    arcText(c, best || '—', cx + colW - 12, cy + 12, 12,
+      best ? '#6ff0c8' : 'rgba(200,212,240,0.3)', 'mono', 'right');
+  }
 }
 
 /* ============================================================================
