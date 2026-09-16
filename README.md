@@ -3,9 +3,11 @@
 **[▶ Jouer maintenant](https://jubifox.github.io/solitaris/)**
 
 A single-file Klondike solitaire, deliberately over-juiced: every move blooms,
-shakes and rains shards. Around it sits a walkable hub with **ten more games**
-in it, a 99-piece skin economy, case opening, an 8-player battle royale against
-AI climbers, and a season that turns over every four weeks.
+shakes and rains shards. Around it sits a lit, walkable hub with **ten more
+games** in it, a 99-piece skin economy, case opening, an 8-player battle royale
+against AI climbers, a level that never resets, three challenges that change at
+midnight, and a season that turns over every four weeks — changing the weather
+in the square while it is at it.
 
 One HTML file. No build step, no dependencies, no server — open it and play.
 
@@ -23,6 +25,7 @@ One HTML file. No build step, no dependencies, no server — open it and play.
 | Enter a building | Click it, or stand in its doorway and press `Enter` |
 | Open / leave the hub | `H` / `Esc` |
 | Leave a hub game | `Esc` (again to go back outside) |
+| Level, dailies, season track | Hall of Records, bottom-left of the plaza |
 
 Build the tableau down in alternating colours, foundations up by suit.
 Standard Klondike rules, draw one, unlimited redeals.
@@ -55,10 +58,17 @@ convert to shards automatically.
 WASD, or click where you want to go — with a doorway for each part of the game.
 You start facing Solitaire Hall, a few steps from a dealt table. The Arena is
 battle royale, The Market is skins, The Vault holds your unopened crates, and
-the Hall of Records has your run on a board beside it. Three more doorways lead
-to the games below. Walk into a doorway and press `Enter` to go in — or just
-click the building and your character walks over and steps through. `H` reopens
-the hub, `Esc` leaves it.
+the Hall of Records is where your progress lives. Three more doorways lead to
+the games below. Walk into a doorway and press `Enter` to go in — or just click
+the building and your character walks over and steps through. `H` reopens the
+hub, `Esc` leaves it.
+
+The square is lit rather than merely dim: it is painted at full strength, then
+a sheet of darkness goes over it with the lamps, doorways and fountain punched
+back out, so shadow stays readable and the far corners actually fall away. A
+click anywhere is routed around the buildings by a shortest path over a grid of
+where you can stand, rather than walked at in a straight line until something
+gets in the way.
 
 **Ten more games**, in three venues off the plaza. They all share your wallet
 and your wardrobe: the card games deal with whichever deck and sleeve you have
@@ -98,11 +108,27 @@ the Market. Each keeps its own personal best.
 - **Prism Break** — ninety seconds of match-three, cascades multiplying as they
   chain, board reshuffled rather than left dead.
 
+**Rooms.** Each venue is built around its play area rather than dropped on a
+black rectangle. The Card Room is a rail of polished wood with brass studs
+under a lamp hung over the table; The Arcade is a cabinet with a neon tube round
+the glass, scanlines across it and a floor running away underneath; The Coliseum
+is dressed stone with torches at the corners. Your felt still shows through the
+middle of all three.
+
+**Progress.** A level that only ever goes up: everything you play pays
+experience, every level pays shards, every third pays gems and every fifth a
+crate. Three challenges picked from the date change at midnight — the same
+three for everyone, no server involved — and clearing all three pays a crate on
+top. It all lives in the Hall of Records, along with your best at each of the
+ten games.
+
 **Seasons.** Solitaire is here all year; everything else rotates on a 28-day
 season. The current season puts three of the ten games forward and pays double
 on them, and puts one skin in the Market that leaves again when the season
-turns — though anything you have bought stays yours. The hub names the season
-and its picks, and the Hall of Records counts how many venues you have beaten.
+turns — though anything you have bought stays yours. It also decides the
+weather: Ember drifts sparks up off the stone, Tide rains, Bloom carries petals,
+Dusk hangs fog. A ten-tier track fills as you play and empties when the season
+turns, ending on that season's skin, so it can be earned as well as bought.
 
 **Battle royale.** You plus seven AI climbers on the same seeded deal. The
 lowest score is cut every 20 seconds until one is left. Placement pays out in
