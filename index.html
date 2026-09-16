@@ -4836,6 +4836,7 @@ function hubUpdate(dt){
     p.y -= p.sp*dt; p.x += Math.sin(T*0.5 + p.ph)*10*dt;
     if (p.y < 180){ p.y = HUB.H; p.x = rnd(0, HUB.W); }
   }
+  weatherUpdate(dt);
 }
 
 /* ---------- drawing ---------- */
@@ -5121,6 +5122,212 @@ function hubAvatar(c, x, y){
   c.restore();
   c.restore();
 }
+/* ---------- weather ----------
+   The season does not only change what the Market sells and which games pay
+   double — it changes what is falling on the square. Ember drifts sparks up
+   off the stone, Tide rains, Bloom carries petals, Dusk hangs fog. It is the
+   quickest way to make the same plaza feel like a different month. */
+var HUB_WEATHER = { rain:[], drift:[], fog:[], kind:'', wet:0 };
+var WEATHER_BY_SEASON = { s_ember:'ember', s_tide:'rain', s_bloom:'petal', s_dusk:'fog' };
+function weatherKind(){ return WEATHER_BY_SEASON[SEASON.id] || 'fog'; }
+function weatherInit(){
+  var k = weatherKind();
+  HUB_WEATHER.kind = k;
+  HUB_WEATHER.rain.length = 0;
+  HUB_WEATHER.drift.length = 0;
+  HUB_WEATHER.fog.length = 0;
+  HUB_WEATHER.wet = k === 'rain' ? 1 : 0;
+  var n = perfTier >= 2 ? 1 : 0.55;
+  if (k === 'rain') for (var i=0;i<Math.round(150*n);i++)
+    HUB_WEATHER.rain.push({ x:rnd(0,1), y:rnd(0,1), v:rnd(0.9,1.5), len:rnd(12,26) });
+  if (k === 'ember' || k === 'petal') for (var j=0;j<Math.round(46*n);j++)
+    HUB_WEATHER.drift.push({ x:rnd(0,1), y:rnd(0,1), ph:rnd(0,6.28), sp:rnd(0.03,0.1), r:rnd(2.2,4.6), sw:rnd(0.3,1) });
+  /* Fog is the whole weather in Dusk and only a hint of haze otherwise —
+     it used to run at full strength in every season, which is what was
+     costing half the frame rate. */
+  var fogN = k === 'fog' ? Math.round(10*n) : Math.round(3*n);
+  for (var f=0;f<fogN;f++)
+    HUB_WEATHER.fog.push({ x:rnd(0,1), y:rnd(0.3,1), r:rnd(200,420), sp:rnd(0.004,0.016),
+                           a:(k === 'fog' ? rnd(0.05,0.11) : rnd(0.02,0.045)) });
+}
+/* Fog is soft and low-frequency, so it is painted into the light buffer at a
+   third of screen resolution and rides along on the blit that is happening
+   anyway. At full resolution it cost a fifth of the frame. */
+function weatherFog(X, k){
+  var w = HUB_WEATHER, sp = lightSprite('150,160,220');
+  X.globalCompositeOperation = 'lighter';
+  for (var i=0;i<w.fog.length;i++){
+    var f = w.fog[i], r = f.r*k;
+    X.globalAlpha = f.a;
+    X.drawImage(sp, f.x*X.canvas.width - r, f.y*X.canvas.height - r*0.42, r*2, r*0.84);
+  }
+  X.globalAlpha = 1;
+}
+function weatherUpdate(dt){
+  if (HUB_WEATHER.kind !== weatherKind()) weatherInit();
+  var i, w = HUB_WEATHER;
+  for (i=0;i<w.rain.length;i++){
+    var d = w.rain[i];
+    d.y += d.v*dt*1.35; d.x += d.v*dt*0.16;
+    if (d.y > 1.05){ d.y -= 1.1; d.x = rnd(0,1); }
+    if (d.x > 1.05) d.x -= 1.1;
+  }
+  for (i=0;i<w.drift.length;i++){
+    var p = w.drift[i];
+    p.ph += dt*1.4;
+    p.y += (w.kind === 'ember' ? -p.sp : p.sp)*dt*1.4;
+    p.x += Math.sin(p.ph)*0.00035*60*dt*p.sw;
+    if (p.y > 1.06) p.y -= 1.12;
+    if (p.y < -0.06) p.y += 1.12;
+    if (p.x > 1.05) p.x -= 1.1; else if (p.x < -0.05) p.x += 1.1;
+  }
+  for (i=0;i<w.fog.length;i++){
+    var g = w.fog[i];
+    g.x += g.sp*dt;
+    if (g.x > 1.2) g.x -= 1.4;
+  }
+}
+/* Drawn in screen space, over the world but under the lighting, so the rain is
+   lit by the lamps it falls through. */
+function weatherDraw(c){
+  var w = HUB_WEATHER, i;
+  c.save();
+  if (w.rain.length){
+    c.globalCompositeOperation = 'lighter';
+    c.strokeStyle = 'rgba(160,200,255,0.30)';
+    c.lineWidth = 1.2;
+    c.beginPath();
+    for (i=0;i<w.rain.length;i++){
+      var d = w.rain[i], rx = d.x*VW, ry = d.y*VH;
+      c.moveTo(rx, ry); c.lineTo(rx - d.len*0.22, ry + d.len);
+    }
+    c.stroke();
+  }
+  if (w.drift.length){
+    c.globalCompositeOperation = 'lighter';
+    var ember = w.kind === 'ember';
+    for (i=0;i<w.drift.length;i++){
+      var p = w.drift[i], px = p.x*VW, py = p.y*VH;
+      c.globalAlpha = 0.5 + 0.45*Math.abs(Math.sin(p.ph));
+      c.fillStyle = ember ? '#ff9a3c' : '#ffc0e0';
+      if (ember) c.drawImage(lightSprite('255,150,60'), px - p.r*4, py - p.r*4, p.r*8, p.r*8);
+      else {
+        c.save(); c.translate(px, py); c.rotate(p.ph);
+        c.beginPath(); c.ellipse(0, 0, p.r*1.5, p.r*0.7, 0, 0, 6.283); c.fill();
+        c.restore();
+      }
+    }
+    c.globalAlpha = 1;
+  }
+  c.restore();
+}
+/* ---------- night lighting ----------
+   The plaza used to be dim because everything in it was painted dim, which
+   flattens it: dim walls, dim ground, dim everything, no sense of anything
+   actually shining. Now it is painted at full strength and lit in two passes.
+   A sheet of darkness goes over the square with the lights punched out of it,
+   which gives depth without crushing anything to black — a sign in shadow is
+   still a sign. Then the same lights go over again additively, which gives
+   their colour: warm sodium round the lamps, the house colour at each doorway.
+   Both are built at a third of screen resolution; soft gradients need no more. */
+var hubLightCv = document.createElement('canvas');
+var hubLightX = hubLightCv.getContext('2d');
+var HUB_LIGHT_SCALE = 0.34;
+var HUB_DARK = 'rgba(5,6,20,0.72)';
+var hubLightList = [];
+function hubAddLight(x, y, r, col, a, squash){
+  var k = HUB.zoom * (hubLightCv.width / Math.max(1, VW));
+  var sx = (x - HUB.camX)*k, sy = (y - HUB.camY)*k, sr = r*k;
+  if (sr <= 0.5) return;
+  if (sx + sr < 0 || sy + sr*(squash||1) < 0 ||
+      sx - sr > hubLightCv.width || sy - sr*(squash||1) > hubLightCv.height) return;
+  hubLightList.push({ x:sx, y:sy, r:sr, col:col, a:a, sq:squash || 1 });
+}
+/* One soft blob per colour, baked once and stretched to each light. Building a
+   radial gradient for every light on every frame — fifty of them, twice over —
+   was costing half the frame rate on its own. */
+var _lightSprites = {};
+function lightSprite(col){
+  var have = _lightSprites[col];
+  if (have) return have;
+  var cv = document.createElement('canvas');
+  cv.width = cv.height = 128;
+  var x = cv.getContext('2d');
+  var g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  /* a defined core that falls away quickly — a gentle ramp over a wide radius
+     fogs the whole square instead of lighting part of it */
+  cs(g, 0, 'rgba(' + col + ',1)');
+  cs(g, 0.34, 'rgba(' + col + ',0.52)');
+  cs(g, 0.66, 'rgba(' + col + ',0.17)');
+  cs(g, 1, 'rgba(' + col + ',0)');
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  _lightSprites[col] = cv;
+  return cv;
+}
+function hubPaintLights(X, mul, asWhite){
+  for (var i=0;i<hubLightList.length;i++){
+    var L = hubLightList[i];
+    var sp = lightSprite(asWhite ? '255,255,255' : L.col);
+    X.globalAlpha = Math.min(1, L.a*mul);
+    X.drawImage(sp, L.x - L.r, L.y - L.r*L.sq, L.r*2, L.r*2*L.sq);
+  }
+  X.globalAlpha = 1;
+}
+function hubLightPass(c){
+  /* Lighting stays on at every effect tier — switching it off entirely was a
+     jarring change of look the moment the machine wobbled. A weaker machine
+     gets a coarser light map instead, which nobody can see. */
+  var scale = perfTier <= 0 ? 0.22 : HUB_LIGHT_SCALE;
+  var lw = Math.max(2, Math.round(VW*scale));
+  var lh = Math.max(2, Math.round(VH*scale));
+  if (hubLightCv.width !== lw) hubLightCv.width = lw;
+  if (hubLightCv.height !== lh) hubLightCv.height = lh;
+
+  hubLightList.length = 0;
+  var i;
+  for (i=0;i<HUB_LAMPS.length;i++){
+    var l = HUB_LAMPS[i];
+    /* each lamp breathes on its own clock, so the square never reads as static */
+    var fl = 0.93 + 0.07*Math.sin(T*2.3 + i*2.1) + 0.025*Math.sin(T*11 + i);
+    hubAddLight(l.x, l.y + 4, 225, '255,190,110', 0.95*fl, 0.52);
+    hubAddLight(l.x, l.y - 46, 58, '255,234,196', 1, 1);
+  }
+  for (i=0;i<HUB_PLACES.length;i++){
+    var b = HUB_PLACES[i], d = hubDoor(b);
+    if (!hubVisible(b.x + b.w/2, b.y + b.h/2, Math.max(b.w, b.h) + 320)) continue;
+    var rgb = hexRgb(b.trim);
+    var near = (HUB.near === b) ? HUB.glow : 0;
+    hubAddLight(d.x, d.y + 6, 165 + near*70, rgb, 0.9 + near*0.4, 0.66);
+    hubAddLight(b.x + b.w/2, b.y + b.h*0.40, b.w*0.54, rgb, 0.46, 0.8);
+    /* the sign has to stay readable from across the square */
+    if (perfTier >= 1) hubAddLight(b.x + b.w/2, b.y - 22, b.w*0.44, rgb, 0.7, 0.45);
+  }
+  if (hubVisible(HUB_FOUNTAIN.x, HUB_FOUNTAIN.y, 320))
+    hubAddLight(HUB_FOUNTAIN.x, HUB_FOUNTAIN.y, 195, '120,200,255', 0.82 + 0.06*Math.sin(T*1.7), 0.5);
+  /* you carry a little light of your own, so you are never a silhouette */
+  hubAddLight(HUB.x, HUB.y - 14, 112, '170,150,255', 0.8, 0.72);
+
+  /* One sheet: darkness, the lights punched out of it, then their colour laid
+     back into the holes. It was two buffers and two full-screen blits, and the
+     second blit alone was costing a third of the frame. */
+  var X = hubLightX;
+  X.setTransform(1,0,0,1,0,0);
+  X.globalCompositeOperation = 'source-over';
+  X.clearRect(0, 0, lw, lh);
+  X.fillStyle = HUB_DARK;
+  X.fillRect(0, 0, lw, lh);
+  X.globalCompositeOperation = 'destination-out';
+  hubPaintLights(X, 1, true);
+  X.globalCompositeOperation = 'lighter';
+  hubPaintLights(X, 0.26, false);
+  weatherFog(X, scale);
+  X.globalCompositeOperation = 'source-over';
+
+  c.save();
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.drawImage(hubLightCv, 0, 0, VW, VH);
+  c.restore();
+}
 function hubVisible(x, y, pad){
   pad = pad || 0;
   return x > HUB.camX - pad && x < HUB.camX + HUB.viewW + pad &&
@@ -5158,6 +5365,8 @@ function hubDraw(c){
   }
   c.restore();
   c.restore();
+  weatherDraw(c);
+  hubLightPass(c);
   hubHud(c);
 }
 function hubHud(c){
@@ -5377,6 +5586,15 @@ function arcEnter(cat){
 function arcStart(id){
   var d = ARC_GAMES[id];
   if (!d) return;
+  /* The venue list greys out a table you cannot afford, but Play Again does
+     not go through the list — without this it would take the last of your
+     shards and seat you anyway. */
+  if (d.cost && wallet.shards < d.cost){
+    SFX.invalid();
+    toast('Need ' + d.cost + ' ◈ for that table — you have ' + wallet.shards, 'bad');
+    arcQuit();
+    return;
+  }
   ARC.pick = null; ARC.id = id; ARC.def = d;
   ARC.g = {}; ARC.t = 0;
   ARC.over = false; ARC.overT = 0; ARC.paid = 0;
@@ -5554,7 +5772,10 @@ function arcDrawOver(c){
   if (ARC.overSub) arcText(c, ARC.overSub, VW/2, y + 84, 13, 'rgba(200,212,240,0.75)', 'mono');
   arcText(c, ARC.paid > 0 ? '+' + ARC.paid + ' ◈' : 'no shards this run', VW/2, y + 122, ARC.paid > 0 ? 26 : 15,
     ARC.paid > 0 ? '#f5c542' : 'rgba(200,212,240,0.5)', ARC.paid > 0 ? 'oswald' : 'mono');
-  arcButton(c, x + 26, y + h - 62, (w - 78)/2, 42, 'PLAY AGAIN', '#6ff0c8', function(){ arcStart(ARC.id); });
+  var again = ARC_GAMES[ARC.id];
+  var broke = again && again.cost && wallet.shards < again.cost;
+  arcButton(c, x + 26, y + h - 62, (w - 78)/2, 42, broke ? 'NOT ENOUGH ◈' : 'PLAY AGAIN', '#6ff0c8',
+    function(){ arcStart(ARC.id); }, broke);
   arcButton(c, x + w/2 + 13, y + h - 62, (w - 78)/2, 42, 'LEAVE', '#bfa5ff', arcQuit);
   c.restore();
 }
